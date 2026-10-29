@@ -202,7 +202,7 @@ test("옛 PC통신 글은 맞는 게시판에 한 번만 들어가고 끝에 원
   expect(rows.length).toBe(1);
   expect(rows[0].board).toBe("data:12");
   expect(rows[0].body.endsWith("출처: https://ktsmemo.cafe24.com/s/OldFiles/651")).toBe(true);
-  expect(db.query("SELECT count(*) AS n FROM posts").get()).toEqual({ n: 79 });
+  expect(db.query("SELECT count(*) AS n FROM posts").get()).toEqual({ n: 109 });
 });
 
 test("아트미디어는 두 줄 첫 화면에서 게시판·보물창고·대화방·탈퇴로 간다", async () => {
@@ -231,5 +231,18 @@ test("대중매체모니터링은 첫 화면 번호로 게시판에 가고 1은 
   const { no } = a.db.query("SELECT no FROM posts WHERE board = 'club:djmon:8'").get() as { no: number };
   await type(a.s, "8", String(no));
   expect(a.text()).toContain("영화를 보는 세가지 시각");
+  a.s.end();
+});
+
+test("TV-매니아는 세 칸 줄과 영문 번호(P2, VM)로 간다", async () => {
+  const a = await client();
+  seed(a.db);
+  await type(a.s, "hitel", "tv001", "pass1", "pass1", "go tv");
+  expect(a.text()).toContain("[TITLE'S MENU]");
+  expect(a.text()).toContain("19. 토론실");
+  await type(a.s, "vm");
+  expect(a.text()).toContain("프로데트");
+  await type(a.s, "p", "17");
+  expect(a.text()).toContain("TV-매니아 오손도손 대화실");
   a.s.end();
 });

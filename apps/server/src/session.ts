@@ -22,7 +22,8 @@ type Club = {
   castle?: boolean;
   chat?: { no: string; name: string };
   // grid.banner: 둘째 칸 아래 가운데 줄. motto: 알림이 없을 때 아래에 띄우는 글. bare: 글 수를 안 보이는 게시판(true면 전부). "" 칸은 비운다.
-  grid?: { title: string; banner?: string; motto?: string; rows: [string, string][][]; bare?: string[] | true };
+  // rows: 칸마다 줄 목록, 한 줄은 번호 두세 개. labels: 칸 위 가로줄에 넣는 이름(왼쪽·오른쪽).
+  grid?: { title: string; banner?: string; motto?: string; rows: string[][][]; labels?: Record<number, string[]>; bare?: string[] | true };
   data?: { code: string; name: string; rooms: string[] };
   info?: { no: string; name: string };
   leave?: { no: string; name: string };
@@ -287,6 +288,36 @@ const DJMON: Club = {
   ].map(([no, name]) => ({ no, name })),
 };
 CLUBS.push(DJMON);
+
+// 천리안 TV-매니아 동호회(go tv). 문화, 시삽 이성진(zstv), 1992년부터. 1994년 잡지에 실린 첫 화면을 옮겼다.
+const TVMANIA: Club = {
+  go: "tv",
+  name: "TV-매니아",
+  desc: ["TV를 아끼는 모든 사람이 함께하는 동호회입니다. 드라마, 오락, 뉴스, 광고까지 TV 이야기를 나눕니다."],
+  chat: { no: "17", name: "오손도손 대화실" },
+  info: { no: "2", name: "회원은 누구누굴까??" },
+  leave: { no: "99", name: "TV동과의 작별" },
+  grid: {
+    title: "티/비/매/니/아  .T.E.L.E.V.I.S.I.O.N.  .M.A.N.I.A.   [GO TV]",
+    labels: { 0: ["[Since 1992]"], 1: ["[TITLE'S MENU]", "[PDS/소그룹 MENU]"], 3: ["[TV 정보 MENU]"] },
+    bare: ["1", "14", "vm", "vg", "18", "19", "98"],
+    rows: [
+      [["1", "2"]],
+      [["11", "p1"], ["13", "p2"], ["14", ""], ["15", "vm"], ["16", "vg"]],
+      [["17", "18", "19"]],
+      [["20", "qa"], ["21", "24"], ["22", "25"], ["23", "26"]],
+      [["98", "99"]],
+    ],
+  },
+  boards: [
+    ["1", "시삽님이 알려드립니다."], ["11", "첨뵙겠습니다~"], ["13", "우리들만의 낙서장"], ["14", "우체통"],
+    ["15", "그림마을 ANSI/TEXT"], ["16", "벼룩시장"], ["p1", "나눔터"], ["p2", "자료실 게시판"],
+    ["vm", "비디오 매니아(Video Mania)"], ["vg", "비디오 매니아 -가입신청-"], ["18", "설문 조사실"], ["19", "토론실"],
+    ["20", "드라마/연속극"], ["21", "오락/영화(만화)"], ["22", "뉴스/시사"], ["23", "광고"], ["qa", "TV 관련(Q/A)"],
+    ["24", "AFKN/기타"], ["25", "오늘의 볼거리"], ["26", "스타탐방"], ["98", "시삽님께 편지써요"],
+  ].map(([no, name]) => ({ no, name })),
+};
+CLUBS.push(TVMANIA);
 
 // 케텔 접속 화면처럼 글자 자체로 그린 로고. 윗줄일수록 오른쪽으로 밀어 기울인다.
 const GLYPHS: Record<string, string[]> = {
@@ -942,24 +973,30 @@ export class Session {
         .get(this.lastSeen ?? Number.MAX_SAFE_INTEGER, `club:${club.go}:${no}`) as { n: number; fresh: number };
       return `[${String(r.fresh).padStart(2)}/${String(r.n).padStart(3)}]`;
     };
-    const cell = (no: string) => {
-      if (!no) return " ".repeat(36);
+    const cell = (no: string, w = 36) => {
+      if (!no) return " ".repeat(w);
       const label = `${no.toUpperCase().padStart(2)}. ${names[no]}`;
       const bare = g.bare === true || g.bare?.includes(no);
       const n = (club.boards ?? []).some((b) => b.no === no) && !bare ? count(no) : "";
-      return pad(label, 36 - n.length) + n;
+      return pad(label, w - n.length) + n;
     };
     const out = [this.header(`GO ${club.go.toUpperCase()}`, club.name), this.at(4, 1) + HL + center(g.title, 78) + RS];
     let row = 5;
-    const rule = () => out.push(this.at(row++, 1) + DIM + "─".repeat(78) + RS);
+    const rule = (labels: string[] = []) => {
+      const w = Math.floor(78 / Math.max(1, labels.length));
+      const line = labels.length ? labels.map((l) => center(` ${l} `, w).replace(/^ +| +$/g, (m) => "─".repeat(m.length))).join("") : "";
+      out.push(this.at(row++, 1) + DIM + pad(line, 78).replace(/ +$/, (m) => "─".repeat(m.length)) + RS);
+    };
     g.rows.forEach((sec, i) => {
-      rule();
-      for (const [a, b] of sec) out.push(this.at(row++, 2) + cell(a) + "   " + cell(b));
+      rule(g.labels?.[i]);
+      for (const cells of sec)
+        out.push(this.at(row++, 2) + (cells.length === 3 ? cells.map((c) => cell(c, 24)).join("  ") : cell(cells[0]) + "   " + cell(cells[1] ?? "")));
       if (i === 1 && g.banner) rule(), out.push(this.at(row++, 1) + center(g.banner, 78));
     });
-    rule();
-    out.push(this.at(row + 1, 1) + (notice || (g.motto ? `\x1b[1;36m ${g.motto}${RS}` : "")), this.at(row + 2, 1) + ` 들어가기(번호) ${member ? "" : "가입(J) "}이전(P) 처음(T) 종료(X)`);
-    return [out.join(""), row + 3];
+    if (row <= 20) rule(); // 칸이 많아 화면이 차면 마지막 줄은 뺀다
+    const at = Math.min(row + 1, 22);
+    out.push(this.at(at, 1) + (notice || (g.motto ? `\x1b[1;36m ${g.motto}${RS}` : "")), this.at(at + 1, 1) + ` 들어가기(번호) ${member ? "" : "가입(J) "}이전(P) 처음(T) 종료(X)`);
+    return [out.join(""), at + 2];
   }
 
   // 동호회 자료실: 번호·자료실명·자료수·최신등록일

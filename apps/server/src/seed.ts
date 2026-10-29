@@ -2,11 +2,13 @@ import type { Database } from "bun:sqlite";
 import artmedia from "./seed/artmedia.json";
 import djmon from "./seed/djmon.json";
 import oldfiles from "./seed/oldfiles.json";
+import tvmania from "./seed/tvmania.json";
 
 // 1994년 잡지에 실린 동호회 화면에서 제목·글쓴이·날짜·조회 수만 옮긴 목록. body가 없으면 본문 대신 이 안내를 넣는다.
 const LISTS: { posts: { board: string; author: string; title: string; date: string; views: number; body?: string }[]; from: string }[] = [
   { posts: artmedia, from: "천리안 아트미디어\n동호회(go am)" },
   { posts: djmon, from: "하이텔 대중매체\n모니터링 동호회(go djmon)" },
+  { posts: tvmania, from: "천리안 TV-매니아\n동호회(go tv)" },
 ];
 const listBody = (from: string) =>
   `본문은 남아 있지 않습니다.\n\n제목, 글쓴이, 날짜, 조회 수는 1994년 잡지에 실린 ${from} 화면에서 옮겼습니다.`;
