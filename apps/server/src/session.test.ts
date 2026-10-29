@@ -202,7 +202,7 @@ test("옛 PC통신 글은 맞는 게시판에 한 번만 들어가고 끝에 원
   expect(rows.length).toBe(1);
   expect(rows[0].board).toBe("data:12");
   expect(rows[0].body.endsWith("출처: https://ktsmemo.cafe24.com/s/OldFiles/651")).toBe(true);
-  expect(db.query("SELECT count(*) AS n FROM posts").get()).toEqual({ n: 109 });
+  expect(db.query("SELECT count(*) AS n FROM posts").get()).toEqual({ n: 131 });
 });
 
 test("아트미디어는 두 줄 첫 화면에서 게시판·보물창고·대화방·탈퇴로 간다", async () => {
@@ -244,5 +244,17 @@ test("TV-매니아는 세 칸 줄과 영문 번호(P2, VM)로 간다", async () 
   expect(a.text()).toContain("프로데트");
   await type(a.s, "p", "17");
   expect(a.text()).toContain("TV-매니아 오손도손 대화실");
+  a.s.end();
+});
+
+test("멀티미디어 클럽은 7에서 자유 게시판 세 갈래로, 18은 메기학당이다", async () => {
+  const a = await client();
+  seed(a.db);
+  await type(a.s, "hitel", "mmc01", "pass1", "pass1", "go mmc");
+  expect(a.text()).toContain("[MULTI-MEDIA]");
+  await type(a.s, "18");
+  expect(a.text()).toContain("전문 매장에 가시면");
+  await type(a.s, "p", "7");
+  expect(a.text()).toContain("펑키와 함께");
   a.s.end();
 });

@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import artmedia from "./seed/artmedia.json";
 import djmon from "./seed/djmon.json";
+import mmc from "./seed/mmc.json";
 import oldfiles from "./seed/oldfiles.json";
 import tvmania from "./seed/tvmania.json";
 
@@ -9,6 +10,7 @@ const LISTS: { posts: { board: string; author: string; title: string; date: stri
   { posts: artmedia, from: "천리안 아트미디어\n동호회(go am)" },
   { posts: djmon, from: "하이텔 대중매체\n모니터링 동호회(go djmon)" },
   { posts: tvmania, from: "천리안 TV-매니아\n동호회(go tv)" },
+  { posts: mmc, from: "하이텔 멀티미디어\n클럽(go mmc)" },
 ];
 const listBody = (from: string) =>
   `본문은 남아 있지 않습니다.\n\n제목, 글쓴이, 날짜, 조회 수는 1994년 잡지에 실린 ${from} 화면에서 옮겼습니다.`;
