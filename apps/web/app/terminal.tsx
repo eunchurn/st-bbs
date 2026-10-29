@@ -7,7 +7,7 @@ import { Directory } from "./directory";
 import { Help } from "./help";
 import { actionOf } from "./keys";
 import { News } from "./news";
-import { Scene, Splash } from "./scene";
+import { Dialing, Scene, Splash } from "./scene";
 
 const BBS_URL = process.env.NEXT_PUBLIC_BBS_URL ?? "ws://localhost:8023/ws";
 const PHONE = "01410";
@@ -45,7 +45,7 @@ function mss(sec: number) {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }
 
-type Live = { phase: "idle" | "dialing" | "online" | "offline"; since: number; hangul: boolean; rd: number };
+type Live = { phase: "idle" | "dialing" | "online" | "offline"; since: number; hangul: boolean; rd: number; until: number };
 
 function toggleFullscreen() {
   const req = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
@@ -55,7 +55,7 @@ function toggleFullscreen() {
 export default function Terminal() {
   const el = useRef<HTMLDivElement>(null);
   // 터미널 쪽이 바꾸고 상태 막대와 그림이 읽는다. 0.25초마다 다시 그린다(RD 불이 깜빡이게).
-  const live = useRef<Live>({ phase: "idle", since: 0, hangul: false, rd: 0 });
+  const live = useRef<Live>({ phase: "idle", since: 0, hangul: false, rd: 0, until: 0 });
   // 시계는 서버 렌더와 어긋나지 않게 브라우저에서만 채운다
   const [now, setNow] = useState(0);
   const [splash, setSplash] = useState(true);
@@ -92,7 +92,7 @@ export default function Terminal() {
       e.preventDefault();
       e.stopPropagation();
       if (a === "help" || a === "news") setWin((w) => (w === a ? null : a));
-      else if (a === "close") setWin(null);
+      else if (a === "close") setWin(null), live.current.phase === "dialing" && hangupRef.current(); // 거는 중이면 ESC는 그만두기
       else if (a === "fullscreen") toggleFullscreen();
       else if (a === "hangup") hangupRef.current();
       else if (a === "quit") hangupRef.current(), setDir(true);
@@ -230,6 +230,7 @@ export default function Terminal() {
         // decodeAudioData는 넘긴 버퍼를 비워 버리므로 다시 걸 때를 위해 복사본을 넘긴다
         const buf = raw ? await ctx.decodeAudioData(raw.slice(0)).catch(() => undefined) : undefined;
         const secs = ctx ? playDial(ctx, PHONE, buf) : 1.5;
+        L.until = Date.now() + secs * 1000;
         await new Promise<void>((r) => {
           const timer = setTimeout(r, secs * 1000);
           skip = () => (clearTimeout(timer), r());
@@ -293,6 +294,7 @@ export default function Terminal() {
         {!splash && dir && <Directory onDial={dial} onHelp={() => setWin("help")} />}
         {win === "help" && <Help onClose={() => setWin(null)} />}
         {win === "news" && <News onClose={() => setWin(null)} />}
+        {L.phase === "dialing" && L.until > 0 && <Dialing left={Math.max(0, Math.ceil((L.until - now) / 1000))} phone={PHONE} />}
         <div
           className={`win ${mode}`}
           style={{

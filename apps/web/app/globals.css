@@ -189,11 +189,81 @@ body {
   background: none;
   box-shadow: calc(var(--dot) * 8) calc(var(--dot) * 8) 0 rgb(0 0 0 / 0.45);
 }
-.splash img {
+.splash-anim {
   display: block;
   width: min(92vw, calc(var(--dot) * 320));
-  height: auto;
+  aspect-ratio: 320 / 168;
+  background: url("/iyagi/splash.png") 0 0 / 100% 500%;
   image-rendering: pixelated;
+  animation: splash-spin 2.25s steps(5) infinite;
+}
+@keyframes splash-spin {
+  to {
+    background-position-y: 125%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash-anim {
+    animation: none;
+  }
+}
+
+/* 전화 거는 상자: 회색 판, 보라 제목 줄(노란 글자), 초록 ESC 단추. 크기는 5.3 화면의 점 단위 */
+.dialing {
+  z-index: 2;
+  width: calc(var(--dot) * 458);
+  max-width: 96vw;
+  box-sizing: border-box;
+  padding: calc(var(--dot) * 4);
+  background: #a8a8a8;
+  border: var(--dot) solid;
+  border-color: #fff #575757 #575757 #fff;
+  box-shadow: calc(var(--dot) * 8) calc(var(--dot) * 8) 0 rgb(0 0 0 / 0.45);
+  font-size: var(--fs);
+  line-height: 1;
+  color: #000;
+  white-space: nowrap;
+}
+.dialing-title {
+  padding: calc(var(--dot) * 2) 0;
+  background: #a800a8;
+  color: #ffff57;
+  text-align: center;
+}
+.dialing-body {
+  margin-top: calc(var(--dot) * 4);
+  padding: calc(var(--dot) * 6) calc(var(--dot) * 24);
+  border: var(--dot) solid;
+  border-color: #575757 #fff #fff #575757;
+}
+.dialing-body > div {
+  display: flex;
+  align-items: center;
+  height: var(--fs);
+  margin: calc(var(--dot) * 2) 0;
+}
+.dialing-body b {
+  font-weight: normal;
+  color: #57ffff;
+  white-space: pre;
+}
+.dialing .wait {
+  margin-left: auto;
+  color: #575757;
+  animation: dial-wait 1s steps(2, jump-none) infinite;
+}
+@keyframes dial-wait {
+  to {
+    visibility: hidden;
+  }
+}
+.dialing .esc {
+  margin-left: auto;
+  padding: calc(var(--dot) * 2) calc(var(--dot) * 4);
+  background: #00a800;
+  color: #fff;
+  border: var(--dot) solid;
+  border-color: #fff #000 #000 #fff;
 }
 
 /* 이야기 전화번호부: 청록 판 위에 회색 목록과 단추 */
