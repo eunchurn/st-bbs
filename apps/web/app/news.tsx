@@ -58,7 +58,7 @@ export function News({ onClose }: { onClose: () => void }) {
         </table>
         <p className="hl">o 이 재현판에서는</p>
         <p>
-          엔터: 전화 걸기 &nbsp; Shift+엔터: 소리 없이 &nbsp; Alt+Enter: 전체 화면 &nbsp; F1: 새소식
+          엔터: 전화 걸기 &nbsp; Shift+엔터: 소리 없이 &nbsp; Alt+Enter: 전체 화면 &nbsp; F1: 도움말 &nbsp; F2: 새소식
         </p>
         <p className="src">
           1990년 하늘소 황태욱(damul) 님의 공개 글을 간추렸습니다. 원문:{" "}
@@ -67,7 +67,7 @@ export function News({ onClose }: { onClose: () => void }) {
           </a>
         </p>
       </div>
-      <div className="news-foot">ESC·F1: 닫기</div>
+      <div className="news-foot">ESC·F2: 닫기</div>
     </div>
   );
 }

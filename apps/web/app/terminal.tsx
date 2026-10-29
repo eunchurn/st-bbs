@@ -4,6 +4,8 @@ import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
 import { playDial } from "./modem";
 import { Directory } from "./directory";
+import { Help } from "./help";
+import { actionOf } from "./keys";
 import { News } from "./news";
 import { Scene, Splash } from "./scene";
 
@@ -58,18 +60,26 @@ export default function Terminal() {
   const [now, setNow] = useState(0);
   const [splash, setSplash] = useState(true);
   const [dir, setDir] = useState(true); // 알림 상자 다음에 전화번호부
-  const [news, setNews] = useState(false); // F1 새소식 창
-  // F1은 어디서나 새소식을 열고 닫는다. ESC는 닫기만.
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "F1") e.preventDefault(), setNews((v) => !v);
-      else if (e.key === "Escape") setNews(false);
-    };
-    addEventListener("keydown", key);
-    return () => removeEventListener("keydown", key);
-  }, []);
+  const [win, setWin] = useState<null | "help" | "news">(null); // F1 도움말, F2 새소식 창
   const termRef = useRef<import("@xterm/xterm").Terminal | undefined>(undefined);
   const dialRef = useRef<(sound: boolean) => void>(() => {});
+  const hangupRef = useRef(() => {});
+  // 지름 글쇠는 keys.ts 표로 받는다. 캡처 단계에서 먼저 잡아 xterm에는 넘기지 않는다.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const a = actionOf(e);
+      if (!a) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (a === "help" || a === "news") setWin((w) => (w === a ? null : a));
+      else if (a === "close") setWin(null);
+      else if (a === "fullscreen") toggleFullscreen();
+      else if (a === "hangup") hangupRef.current();
+      else if (a === "quit") hangupRef.current(), setDir(true);
+    };
+    addEventListener("keydown", key, true);
+    return () => removeEventListener("keydown", key, true);
+  }, []);
   const close = () => setSplash(false);
   // 전화번호부에서 걸면 번호부를 닫고 터미널에서 전화를 건다
   const dial = (sound: boolean) => {
@@ -77,14 +87,14 @@ export default function Terminal() {
     dialRef.current(sound);
   };
   useEffect(() => {
-    if (splash || !dir || news) return;
-    const key = (e: KeyboardEvent) => e.key === "Enter" && (e.preventDefault(), dial(!e.shiftKey));
+    if (splash || !dir || win) return;
+    const key = (e: KeyboardEvent) => e.key === "Enter" && !e.altKey && (e.preventDefault(), dial(!e.shiftKey));
     addEventListener("keydown", key);
     return () => removeEventListener("keydown", key);
-  }, [splash, dir, news]);
+  }, [splash, dir, win]);
   useEffect(() => {
-    if (!splash && !dir && !news) termRef.current?.focus(); // 창이 보인 뒤에 포커스를 준다
-  }, [splash, dir, news]);
+    if (!splash && !dir && !win) termRef.current?.focus(); // 창이 보인 뒤에 포커스를 준다
+  }, [splash, dir, win]);
   useEffect(() => {
     if (!splash) return;
     const timer = setTimeout(close, 5000);
@@ -189,13 +199,16 @@ export default function Terminal() {
         });
         skip = () => {};
         ctx?.close();
-        if (!disposed) connect();
+        if (!disposed && L.phase === "dialing") connect();
       };
 
+      hangupRef.current = () => {
+        if (L.phase === "dialing") hangup(" NO CARRIER"), skip(); // 거는 중이면 연결하지 않는다
+        else if (L.phase === "online") ws?.close();
+      };
       dialRef.current = (sound) => L.phase !== "dialing" && L.phase !== "online" && dial(sound);
 
       t.onData((d) => {
-        if (d === "\x1b\r") return toggleFullscreen(); // Alt+Enter
         if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(d)) L.hangul = true; // 마지막에 친 글자로 <한글>/<영문>을 정한다
         else if (/[a-zA-Z]/.test(d)) L.hangul = false;
         if (L.phase === "dialing") return skip();
@@ -240,8 +253,9 @@ export default function Terminal() {
       <Scene online={online} />
       <div className="stage">
         {splash && <Splash onClose={close} />}
-        {!splash && dir && <Directory onDial={dial} onHelp={() => setNews(true)} />}
-        {news && <News onClose={() => setNews(false)} />}
+        {!splash && dir && <Directory onDial={dial} onHelp={() => setWin("help")} />}
+        {win === "help" && <Help onClose={() => setWin(null)} />}
+        {win === "news" && <News onClose={() => setWin(null)} />}
         <div className="win" style={{ visibility: splash || dir ? "hidden" : "visible" }}>
           <div className="title">이야기 5.0 - 01410 하이텔</div>
           <div ref={el} />
@@ -255,8 +269,8 @@ export default function Terminal() {
           <i className={online && now - L.rd < 300 ? "on" : ""} />
         </span>
         <span>연결 {hms(sec)}</span>
-        <button type="button" onClick={() => setNews((v) => !v)}>
-          F1-새소식
+        <button type="button" onClick={() => setWin((w) => (w === "help" ? null : "help"))}>
+          F1-도움말
         </button>
         <span>KS5601 완성</span>
         <span>1- 14400-N-8-1</span>

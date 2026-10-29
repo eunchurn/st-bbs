@@ -257,6 +257,81 @@ body {
   padding-top: 3px;
 }
 
+/* 도움말 창: 회색 틀, 검은 글판, 아래에 색 단추 */
+.help {
+  z-index: 2;
+  width: min(94vw, 40em);
+  height: min(80vh, 30em);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #a8a8a8;
+  padding: 6px;
+  border: 2px solid;
+  border-color: #fcfcfc #545454 #545454 #fcfcfc;
+  box-shadow: 8px 8px 0 rgb(0 0 0 / 0.45);
+  font-size: max(13px, 2.1vh);
+}
+.help-text {
+  flex: 1;
+  overflow: auto;
+  background: #000;
+  color: #fcfcfc;
+  padding: 0.6em 1.2em;
+  line-height: 1.6;
+  border: 2px solid;
+  border-color: #545454 #fcfcfc #fcfcfc #545454;
+}
+.help-title {
+  width: fit-content;
+  margin: 0.2em auto 0.8em;
+  padding: 0.1em 1.2em;
+  border: 2px solid #fcfcfc;
+}
+.help-text p {
+  margin: 0.5em 0;
+  text-indent: 1em;
+}
+.help-text td:first-child {
+  color: #fcfc54;
+  padding-right: 1.5em;
+}
+.help-keys {
+  display: flex;
+  gap: 6px;
+}
+.help-keys button {
+  font: inherit;
+  cursor: pointer;
+  border: 2px solid;
+  border-color: #fcfcfc #545454 #545454 #fcfcfc;
+  padding: 0 0.3em;
+}
+.help-keys button:disabled {
+  cursor: default;
+}
+.help-keys .arrows {
+  display: grid;
+  gap: 2px;
+}
+.help-keys .arrows button {
+  background: #a8a8a8;
+  color: #000;
+}
+.help-keys .grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+}
+.help-keys .blue { background: #0000a8; color: #fcfcfc; }
+.help-keys .red { background: #a80000; color: #fcfcfc; }
+.help-keys .cyan { background: #00a8a8; color: #fcfcfc; }
+.help-keys .green { background: #00a800; color: #fcfcfc; }
+.help-keys .brown { background: #a85400; color: #fcfcfc; }
+.help-keys .gray { background: #545454; color: #fcfcfc; }
+.help-keys .lgreen { background: #54fc54; color: #000; }
+
 /* 이야기 5.0 아래 막대 */
 .status {
   position: fixed;
