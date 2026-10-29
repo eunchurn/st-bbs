@@ -9,4 +9,4 @@ resources:
   - ingress.yaml
 images:
   - name: ghcr.io/eunchurn/st-bbs-server
-    newTag: latest
+    newTag: 0ee2e580a91564af4f6f34d804ca4d5b61f82731
