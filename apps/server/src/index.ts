@@ -1,7 +1,9 @@
 import { openDb } from "./db";
+import { seed } from "./seed";
 import { Session, type Size } from "./session";
 
 const db = openDb();
+seed(db);
 const port = Number(process.env.PORT ?? 8023);
 // 웹(Vercel)이 다른 도메인이므로 허용할 Origin을 명시한다. 쉼표로 여러 개.
 const origins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000").split(",").map((s) => s.trim());

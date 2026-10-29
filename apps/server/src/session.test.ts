@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { openDb } from "./db";
+import { seed } from "./seed";
 import { cells, clean, Session, type Out } from "./session";
 
 // 첫 화면의 이용자ID 질문에서 돌려준다
@@ -191,4 +192,15 @@ test("환타지동호회는 성 그림 첫 화면에서 번호로 게시판과 �
   await type(a.s, "/q");
   expect(a.text().slice(a.text().lastIndexOf("\x1b[2J"))).toContain("Welcome to Fantasy World");
   a.s.end();
+});
+
+test("옛 PC통신 글은 맞는 게시판에 한 번만 들어가고 끝에 원문 주소가 있다", () => {
+  const db = openDb(":memory:");
+  seed(db);
+  seed(db);
+  const rows = db.query("SELECT board, body FROM posts WHERE title = '이야기2.4 하늘소 황태욱님의 글'").all() as { board: string; body: string }[];
+  expect(rows.length).toBe(1);
+  expect(rows[0].board).toBe("data:12");
+  expect(rows[0].body.endsWith("출처: https://ktsmemo.cafe24.com/s/OldFiles/651")).toBe(true);
+  expect(db.query("SELECT count(*) AS n FROM posts").get()).toEqual({ n: 11 });
 });
