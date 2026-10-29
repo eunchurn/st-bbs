@@ -202,7 +202,7 @@ test("옛 PC통신 글은 맞는 게시판에 한 번만 들어가고 끝에 원
   expect(rows.length).toBe(1);
   expect(rows[0].board).toBe("data:12");
   expect(rows[0].body.endsWith("출처: https://ktsmemo.cafe24.com/s/OldFiles/651")).toBe(true);
-  expect(db.query("SELECT count(*) AS n FROM posts").get()).toEqual({ n: 52 });
+  expect(db.query("SELECT count(*) AS n FROM posts").get()).toEqual({ n: 79 });
 });
 
 test("아트미디어는 두 줄 첫 화면에서 게시판·보물창고·대화방·탈퇴로 간다", async () => {
@@ -217,5 +217,19 @@ test("아트미디어는 두 줄 첫 화면에서 게시판·보물창고·대�
   await type(a.s, "/q", "99");
   expect(a.text()).toContain("탈퇴했습니다");
   expect(a.db.query("SELECT count(*) AS n FROM club_members").get()).toEqual({ n: 0 });
+  a.s.end();
+});
+
+test("대중매체모니터링은 첫 화면 번호로 게시판에 가고 1은 회원 정보다", async () => {
+  const a = await client();
+  seed(a.db);
+  await type(a.s, "hitel", "mon01", "pass1", "pass1", "go djmon");
+  expect(a.text()).toContain("13. PC통신 모니터링");
+  expect(a.text()).toContain("대모동은 늘 최선을");
+  await type(a.s, "1");
+  expect(a.text()).toContain("아직 가입하지 않았습니다");
+  const { no } = a.db.query("SELECT no FROM posts WHERE board = 'club:djmon:8'").get() as { no: number };
+  await type(a.s, "8", String(no));
+  expect(a.text()).toContain("영화를 보는 세가지 시각");
   a.s.end();
 });

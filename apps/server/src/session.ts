@@ -21,7 +21,8 @@ type Club = {
   boards?: ClubBoard[];
   castle?: boolean;
   chat?: { no: string; name: string };
-  grid?: { title: string; banner: string; rows: [string, string][][]; bare?: string[] }; // bare: 글 수를 안 보이는 게시판
+  // grid.banner: 둘째 칸 아래 가운데 줄. motto: 알림이 없을 때 아래에 띄우는 글. bare: 글 수를 안 보이는 게시판(true면 전부). "" 칸은 비운다.
+  grid?: { title: string; banner?: string; motto?: string; rows: [string, string][][]; bare?: string[] | true };
   data?: { code: string; name: string; rooms: string[] };
   info?: { no: string; name: string };
   leave?: { no: string; name: string };
@@ -259,6 +260,33 @@ const ARTMEDIA: Club = {
   ].map(([no, name]) => ({ no, name })),
 };
 CLUBS.push(ARTMEDIA);
+
+// 하이텔 대중매체 모니터링 동호회(go djmon, 대모동). 사회/종교. 1994년 4월호 잡지에 실린 첫 화면을 옮겼다.
+const DJMON: Club = {
+  go: "djmon",
+  name: "대중매체모니터링",
+  desc: ["신문, 방송, 광고, 잡지, PC통신까지 대중매체를 회원들이 스스로 살펴보고 의견을 나누는 동호회입니다."],
+  chat: { no: "4", name: "사랑을 나눠요" },
+  info: { no: "1", name: "가입신청/회원 정보" },
+  grid: {
+    title: "대 중 매 체 모 니 터 링   (DJMON)",
+    motto: "대모동은 늘 최선을 다하고 있습니다..........",
+    bare: true,
+    rows: [
+      [["1", "9"], ["2", "10"], ["3", "11"], ["4", "12"], ["5", "13"], ["6", ""]],
+      [["14", "15"], ["16", "17"], ["18", "19"], ["8", ""]],
+      [["21", "7"], ["", "939"]],
+    ],
+  },
+  boards: [
+    ["2", "공지사항(알립니다)"], ["3", "운영진께 바랍니다"], ["5", "자료를 나눠요(공개자료실)"], ["6", "자료실 게시판"],
+    ["9", "신문 모니터링"], ["10", "방송 모니터링"], ["11", "광고 모니터링"], ["12", "잡지, 영화, 기타"],
+    ["13", "PC통신 모니터링"], ["14", "토론을 합시다"], ["15", "통신일기"], ["16", "물어보세요/알려드려요"],
+    ["17", "대모동 이렇게 해봐요"], ["18", "대모동 시사칼럼"], ["19", "정보 제공"], ["8", "연구발표장"],
+    ["21", "전대기련게시판"], ["7", "자유게시판"], ["939", "마음에 담는글"],
+  ].map(([no, name]) => ({ no, name })),
+};
+CLUBS.push(DJMON);
 
 // 케텔 접속 화면처럼 글자 자체로 그린 로고. 윗줄일수록 오른쪽으로 밀어 기울인다.
 const GLYPHS: Record<string, string[]> = {
@@ -915,8 +943,10 @@ export class Session {
       return `[${String(r.fresh).padStart(2)}/${String(r.n).padStart(3)}]`;
     };
     const cell = (no: string) => {
+      if (!no) return " ".repeat(36);
       const label = `${no.toUpperCase().padStart(2)}. ${names[no]}`;
-      const n = (club.boards ?? []).some((b) => b.no === no) && !g.bare?.includes(no) ? count(no) : "";
+      const bare = g.bare === true || g.bare?.includes(no);
+      const n = (club.boards ?? []).some((b) => b.no === no) && !bare ? count(no) : "";
       return pad(label, 36 - n.length) + n;
     };
     const out = [this.header(`GO ${club.go.toUpperCase()}`, club.name), this.at(4, 1) + HL + center(g.title, 78) + RS];
@@ -925,10 +955,10 @@ export class Session {
     g.rows.forEach((sec, i) => {
       rule();
       for (const [a, b] of sec) out.push(this.at(row++, 2) + cell(a) + "   " + cell(b));
-      if (i === 1) rule(), out.push(this.at(row++, 1) + center(g.banner, 78));
+      if (i === 1 && g.banner) rule(), out.push(this.at(row++, 1) + center(g.banner, 78));
     });
     rule();
-    out.push(this.at(row + 1, 1) + notice, this.at(row + 2, 1) + ` 들어가기(번호) ${member ? "" : "가입(J) "}이전(P) 처음(T) 종료(X)`);
+    out.push(this.at(row + 1, 1) + (notice || (g.motto ? `\x1b[1;36m ${g.motto}${RS}` : "")), this.at(row + 2, 1) + ` 들어가기(번호) ${member ? "" : "가입(J) "}이전(P) 처음(T) 종료(X)`);
     return [out.join(""), row + 3];
   }
 
