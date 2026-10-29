@@ -84,38 +84,44 @@ const small = (go: string, name: string, desc?: string[]): Club => ({
   desc: desc ?? [`'${name}'에 오신 것을 환영합니다.`, "같은 것을 좋아하는 사람끼리 모인 소모임입니다. 이야기방에 인사를 남겨 주세요."],
 });
 
-// 소모임은 주제(분류)별로 모인다. 오락/게임 목록은 하이텔 FFUN 화면을 옮겼다.
+// 소모임은 주제(분류)별로 모이고 go 이름은 sg 번호다. 오락/게임 목록은 하이텔 FFUN 화면을 옮겼다.
+// sg1343(스매싱펌킨스 모임) 말고는 번호를 차례로 붙였다.
 const SMALLS: Small[] = [
   {
     go: "ffun",
     title: "오락/게임",
     clubs: [
       CLUBS.find((c) => c.go === "cgame")!,
-      small("tcg", "트레이딩 카드게임"),
-      small("neoris", "그라비티 사랑 소모임 '네오리스'"),
-      small("kofh", "컨오브하트를 즐기는 사람들 모임"),
-      small("rondbel", "로봇대전 소모임 '론드-벨'"),
-      small("bsgame", "미소녀게임연구소"),
-      small("leaf", "Leaf Lovers' Life"),
-      small("dcast", "드림캐스트를 사랑하는 사람들의 모임"),
-      small("elf", "The Forum of elf 'Sweet on You'"),
-      small("jedi", "스타워즈 소모임 '제다이'"),
-      small("sam3", "삼국지 클럽"),
-      small("genesis", "창세기전 게임클럽"),
-      small("ff", "FINAL FANTASY '유구한 바람의 환타지'"),
-      small("piacar", "피아 캐롯 사랑모임"),
-      small("pump", "펌프(pumpitup) 매니아"),
-      small("guwon", "구원의 반 사랑 모임"),
-      small("legend", "은하영웅전설 클럽"),
+      small("sg1101", "트레이딩 카드게임"),
+      small("sg1102", "그라비티 사랑 소모임 '네오리스'"),
+      small("sg1103", "컨오브하트를 즐기는 사람들 모임"),
+      small("sg1104", "로봇대전 소모임 '론드-벨'"),
+      small("sg1105", "미소녀게임연구소"),
+      small("sg1106", "Leaf Lovers' Life"),
+      small("sg1107", "드림캐스트를 사랑하는 사람들의 모임"),
+      small("sg1108", "The Forum of elf 'Sweet on You'"),
+      small("sg1109", "스타워즈 소모임 '제다이'"),
+      small("sg1110", "삼국지 클럽"),
+      small("sg1111", "창세기전 게임클럽"),
+      small("sg1112", "FINAL FANTASY '유구한 바람의 환타지'"),
+      small("sg1113", "피아 캐롯 사랑모임"),
+      small("sg1114", "펌프(pumpitup) 매니아"),
+      small("sg1115", "구원의 반 사랑 모임"),
+      small("sg1116", "은하영웅전설 클럽"),
     ],
+  },
+  {
+    go: "falt",
+    title: "얼터너티브 음악",
+    clubs: [small("sg1343", "스매싱펌킨스 모임", ["The Smashing Pumpkins를 좋아하는 사람들의 소모임입니다.", "음반 이야기, 가사 번역, 공연 소식을 나눕니다."])],
   },
   {
     go: "flit",
     title: "문학/독서",
     clubs: [
-      small("ida", "이다", ["글을 올리고 생각을 나누며 토론하는 문학 모임입니다.", "시, 소설, 비평 무엇이든 좋습니다."]),
-      small("litread", "리터란 독서", ["읽은 책의 서평과 독서 일기를 올리는 곳입니다."]),
-      small("serial", "연재소설방", ["소설을 한 회씩 연재하는 곳입니다.", "등단하지 않아도 누구나 연재할 수 있습니다."]),
+      small("sg1201", "이다", ["글을 올리고 생각을 나누며 토론하는 문학 모임입니다.", "시, 소설, 비평 무엇이든 좋습니다."]),
+      small("sg1202", "리터란 독서", ["읽은 책의 서평과 독서 일기를 올리는 곳입니다."]),
+      small("sg1203", "연재소설방", ["소설을 한 회씩 연재하는 곳입니다.", "등단하지 않아도 누구나 연재할 수 있습니다."]),
     ],
   },
 ];
@@ -854,7 +860,7 @@ export class Session {
   // ---- 소모임 ----
 
   private smallCats(notice = "") {
-    const rows = SMALLS.map((g, i) => ` ${i + 1}. ${pad(g.title, 14)}go ${pad(g.go, 8)}소모임 ${g.clubs.length}개`);
+    const rows = SMALLS.map((g, i) => ` ${i + 1}. ${pad(g.title, 18)}go ${pad(g.go, 8)}소모임 ${g.clubs.length}개`);
     const [list, next] = this.box(6, 12, 58, ["", ...rows, ""]);
     this.draw(
       [

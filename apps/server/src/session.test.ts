@@ -166,9 +166,11 @@ test("소모임은 분류에서 골라 들어가고, P로 그 분류에 돌아�
   await type(a.s, "hitel", "sm001", "pass1", "pass1", "15", "1");
   expect(a.text()).toContain("은하영웅전설 클럽");
   await type(a.s, "17");
-  expect(a.text()).toContain("GO LEGEND");
+  expect(a.text()).toContain("GO SG1116");
   await type(a.s, "j", "p");
   expect(a.text().slice(a.text().lastIndexOf("\x1b[2J"))).toContain("오락/게임 [분류]");
+  await type(a.s, "go sg1343");
+  expect(a.text()).toContain("스매싱펌킨스 모임");
   a.s.end();
 });
 

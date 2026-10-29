@@ -3,6 +3,7 @@
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
 import { playDial } from "./modem";
+import { floor, splash } from "./splash";
 
 const BBS_URL = process.env.NEXT_PUBLIC_BBS_URL ?? "ws://localhost:8023/ws";
 const PHONE = "01410";
@@ -99,17 +100,25 @@ export default function Terminal() {
 
       let phase: "idle" | "dialing" | "online" | "offline" = "idle";
       let since = 0;
+      let hangul = false; // 마지막에 친 글자가 한글이면 <한글>
+      let rd = 0; // 받는 불(RD)이 켜진 시각
       let prompt = "";
       let secret = false;
       let buf = "";
 
+      // 이야기 5.0의 아래 상태 줄: 입력 모드, 모뎀 불(CD·RD), 연결 시간, 글자판, 통신 설정, 요금, 시계
       const status = () => {
         const sec = since ? Math.floor((Date.now() - since) / 1000) : 0;
-        const left = since ? ` HITEL | 사용 ${hms(sec)} | 요금 ${(Math.ceil(sec / 60) * WON_PER_MIN).toLocaleString()}원` : " HITEL | 접속 전";
-        const text = `${left} | Alt+Enter 전체 화면`;
-        let cellsUsed = 0;
-        for (const ch of text) cellsUsed += width(ch);
-        t.write(`\x1b7\x1b[${rows};1H\x1b[0;30;46m${text}${" ".repeat(Math.max(0, cols - cellsUsed))}\x1b[0m\x1b8`);
+        const won = (Math.ceil(sec / 60) * WON_PER_MIN).toLocaleString();
+        const light = (on: boolean) => (on ? "\x1b[92;47m■" : "\x1b[90;47m■");
+        const lights = light(phase === "online") + " " + light(phase === "online" && Date.now() - rd < 300);
+        const clock = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul" });
+        const segs = [hangul ? "<한글>-2" : "<영문>-2", `${lights}\x1b[30;47m`, `연결 ${hms(sec).replace(/^00:/, "")}`, "KS5601 완성", "14400-N-8-1", `요금 ${won}원`];
+        let text = segs.map((x) => ` ${x} `).join("\x1b[90;47m│\x1b[30;47m");
+        let used = 0;
+        for (const ch of text.replace(/\x1b\[[0-9;]*m/g, "")) used += width(ch);
+        text += " ".repeat(Math.max(1, cols - used - clock.length - 1)) + clock + " ";
+        t.write(`\x1b7\x1b[${rows};1H\x1b[0;30;47m${text}\x1b[0m\x1b8`);
       };
 
       // 줄 편집은 브라우저에서 하고, 엔터를 치면 그 줄만 서버로 보낸다.
@@ -124,7 +133,7 @@ export default function Terminal() {
         phase = "offline";
         clearInterval(clock);
         prompt = buf = "";
-        t.write(`\r\n${msg}\r\n\r\n 엔터를 누르면 다시 겁니다.\r\n`);
+        t.write(splash() + floor([` ${msg}`, " 엔터를 누르면 다시 겁니다.   (s: 소리 없이 접속)"]));
         status();
       };
 
@@ -134,10 +143,11 @@ export default function Terminal() {
           phase = "online";
           since = Date.now();
           clock = setInterval(status, 1000);
-          t.write("\r\n CONNECT 14400\r\n");
+          t.write("\x1b[0m\x1b[2J\x1b[H CONNECT 14400\r\n");
         };
         ws.onmessage = (e) => {
           const m: Msg = JSON.parse(e.data);
+          rd = Date.now();
           if (m.t === "out") redraw(m.d.replace(/\n/g, "\r\n"));
           else if (m.t === "prompt") {
             prompt = m.d;
@@ -150,7 +160,7 @@ export default function Terminal() {
 
       const dial = async (sound: boolean) => {
         phase = "dialing";
-        t.write(`\x1b[2J\x1b[H C:\\> ATDT ${PHONE}\r\n 전화 거는 중... (아무 키나 누르면 건너뜁니다)`);
+        t.write(floor([" ATZ", " OK", ` ATDT${PHONE}   전화 거는 중... (아무 키나 누르면 건너뜁니다)`]));
         status();
         // AudioContext는 키를 누른 직후(사용자 동작 안)에 만들어야 소리가 난다
         const ctx = sound ? new AudioContext() : undefined;
@@ -167,11 +177,13 @@ export default function Terminal() {
         if (!disposed) connect();
       };
 
-      t.write(" HITEL 하이텔  PC통신 재현 프로젝트\r\n\r\n 엔터를 누르면 전화를 겁니다.   (s: 소리 없이 접속)\r\n");
+      t.write(splash() + floor(["", " 엔터: 01410 전화 걸기   S: 소리 없이 접속   Alt+Enter: 전체 화면"]));
       status();
 
       t.onData((d) => {
         if (d === "\x1b\r") return toggleFullscreen(); // Alt+Enter
+        if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(d)) hangul = true;
+        else if (/[a-zA-Z]/.test(d)) hangul = false;
         if (phase === "dialing") return skip();
         if (phase === "idle" || phase === "offline") {
           if (d === "\r") dial(true);
