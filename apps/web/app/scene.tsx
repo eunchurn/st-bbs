@@ -83,3 +83,16 @@ export function Scene({ online }: { online: boolean }) {
     </div>
   );
 }
+
+// 이야기 첫 화면의 알림 상자. 5초 뒤나 누르면 닫힌다(닫는 일은 terminal.tsx가 한다).
+export function Splash({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="splash" onClick={onClose} role="dialog" aria-label="이야기 5.0">
+      <div className="title">이야기 다섯째 고개</div>
+      <div className="field green">셈틀통신 이야기 5.0</div>
+      <div className="field red">(저) 하늘소, 경북대학교 컴퓨터 동아리</div>
+      <p>“ 젊음과 패기가 하나로 ”</p>
+      <p className="big">한글날이 국경일이 되길</p>
+    </div>
+  );
+}

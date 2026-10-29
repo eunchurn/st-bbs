@@ -72,6 +72,50 @@ body {
   margin-bottom: 3px;
 }
 
+/* 이야기 첫 알림 상자. .win과 같은 칸에 겹쳐 놓는다 */
+.stage > * {
+  grid-area: 1 / 1;
+}
+.splash {
+  z-index: 1;
+  cursor: pointer;
+  background: #a8a8a8;
+  padding: 4px 4px 1.2em;
+  min-width: min(92vw, 30em);
+  border: 2px solid;
+  border-color: #fcfcfc #545454 #545454 #fcfcfc;
+  box-shadow: 8px 8px 0 rgb(0 0 0 / 0.45);
+  text-align: center;
+  font-size: max(14px, 2.6vh);
+}
+.splash .field {
+  margin: 0.7em auto 0;
+  width: 75%;
+  padding: 0.2em 0;
+  border: 2px solid;
+  border-color: #545454 #fcfcfc #fcfcfc #545454;
+  color: #fcfcfc;
+}
+.splash .green {
+  background: #00a800;
+}
+.splash .red {
+  background: #a80000;
+}
+.splash p {
+  margin: 0.9em 0 0;
+  color: #fcfcfc;
+  text-shadow: 1px 1px #000;
+}
+.splash p.big {
+  margin-top: 0.3em;
+  font-size: 1.2em;
+  color: #000;
+  text-shadow: none;
+  border-bottom: 3px double #545454;
+  display: inline-block;
+}
+
 /* 이야기 5.0 아래 막대 */
 .status {
   position: fixed;

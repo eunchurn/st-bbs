@@ -3,7 +3,7 @@
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
 import { playDial } from "./modem";
-import { Scene } from "./scene";
+import { Scene, Splash } from "./scene";
 
 const BBS_URL = process.env.NEXT_PUBLIC_BBS_URL ?? "ws://localhost:8023/ws";
 const PHONE = "01410";
@@ -12,9 +12,9 @@ const cols = 80;
 const rows = 24;
 const MAX_LINE = 500;
 const WON_PER_MIN = 20; // 과금 체험용 연출 값. 실제 당시 요금표가 아니다.
-// 글자 크기: 창 높이에 약 42줄이 들어갈 크기. 터미널 창은 가운데, 둘레는 이야기 5.0 사무실 그림이다.
+// 글자 크기: 창 높이에 약 32줄이 들어갈 크기. 터미널 창은 가운데, 둘레는 이야기 5.0 사무실 그림이다.
 // 창이 좁으면 80칸이 들어가도록 더 줄인다(둥근모 반각 폭은 0.5em).
-const fontSize = () => Math.max(8, Math.min(28, Math.round(innerHeight / 42), Math.floor(innerWidth / (cols * 0.5))));
+const fontSize = () => Math.max(8, Math.min(32, Math.round(innerHeight / 32), Math.floor(innerWidth / (cols * 0.5))));
 // VGA 16색. 하이텔 화면의 파랑·초록·보라가 이 색이다.
 const VGA = {
   background: "#0000a8", foreground: "#c0c0c0", cursor: "#c0c0c0",
@@ -52,9 +52,20 @@ export default function Terminal() {
   const el = useRef<HTMLDivElement>(null);
   // 터미널 쪽이 바꾸고 상태 막대와 그림이 읽는다. 0.25초마다 다시 그린다(RD 불이 깜빡이게).
   const live = useRef<Live>({ phase: "idle", since: 0, hangul: false, rd: 0 });
-  const [, tick] = useState(0);
+  // 시계는 서버 렌더와 어긋나지 않게 브라우저에서만 채운다
+  const [now, setNow] = useState(0);
+  const [splash, setSplash] = useState(true);
+  const termRef = useRef<import("@xterm/xterm").Terminal | undefined>(undefined);
+  const close = () => setSplash(false);
   useEffect(() => {
-    const i = setInterval(() => tick((n) => n + 1), 250);
+    if (!splash) return void termRef.current?.focus(); // 창이 보인 뒤에 포커스를 준다
+    const timer = setTimeout(close, 5000);
+    addEventListener("keydown", close);
+    return () => (clearTimeout(timer), removeEventListener("keydown", close));
+  }, [splash]);
+  useEffect(() => {
+    setNow(Date.now());
+    const i = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(i);
   }, []);
 
@@ -90,6 +101,7 @@ export default function Terminal() {
         theme: VGA,
       });
       term = t;
+      termRef.current = t;
       t.loadAddon(new Unicode11Addon());
       t.unicode.activeVersion = "11";
       t.open(el.current);
@@ -194,13 +206,14 @@ export default function Terminal() {
   }, []);
 
   const L = live.current;
-  const sec = L.since ? Math.floor((Date.now() - L.since) / 1000) : 0;
+  const sec = L.since && now > L.since ? Math.floor((now - L.since) / 1000) : 0;
   const online = L.phase === "online";
   return (
     <>
       <Scene online={online} />
       <div className="stage">
-        <div className="win">
+        {splash && <Splash onClose={close} />}
+        <div className="win" style={{ visibility: splash ? "hidden" : "visible" }}>
           <div className="title">이야기 5.0 - 01410 하이텔</div>
           <div ref={el} />
         </div>
@@ -210,13 +223,13 @@ export default function Terminal() {
         <span>{L.hangul ? "<한글>-2" : "<영문>-2"}</span>
         <span>
           <i className={online ? "on" : ""} />
-          <i className={online && Date.now() - L.rd < 300 ? "on" : ""} />
+          <i className={online && now - L.rd < 300 ? "on" : ""} />
         </span>
         <span>연결 {hms(sec)}</span>
         <span>KS5601 완성</span>
         <span>1- 14400-N-8-1</span>
         <span>요금 {(Math.ceil(sec / 60) * WON_PER_MIN).toLocaleString()}원</span>
-        <span className="clock">{new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul" })}</span>
+        <span className="clock">{now ? new Date(now).toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul" }) : ""}</span>
       </div>
     </>
   );
