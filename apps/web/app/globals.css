@@ -1,0 +1,19 @@
+@font-face {
+  font-family: "DungGeunMo";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/DungGeunMo.woff") format("woff");
+  font-display: block;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #0000a8;
+}
+
+main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100dvh;
+}

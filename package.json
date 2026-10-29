@@ -1,0 +1,14 @@
+{
+  "name": "st-bbs",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "nx run-many -t dev",
+    "build": "nx run-many -t build",
+    "test": "nx run-many -t test",
+    "typecheck": "nx run-many -t typecheck"
+  },
+  "devDependencies": {
+    "nx": "24.0.2"
+  }
+}
