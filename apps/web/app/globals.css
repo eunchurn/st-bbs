@@ -9,14 +9,104 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #000; /* 80x25 하이텔 화면 바깥은 꺼진 모니터처럼 검게 */
+  background: #0000a8;
+  font-family: DungGeunMo, monospace;
 }
 
-/* terminal.tsx의 center()가 창 가운데에 오도록 left/top을 정한다 */
-.screen {
+/* 이야기 5.0 사무실: 위는 벽, 아래는 바닥. 책상 높이는 화면의 64% */
+.scene {
   position: fixed;
-  top: 0;
+  inset: 0;
+  background: linear-gradient(#5454fc 0 66%, #0000a8 66% 100%);
+}
+.desk {
+  position: absolute;
   left: 0;
+  width: 74%;
+  top: 62%;
+  height: 4%;
+  background: #fcfcfc;
+  border-bottom: 1.5vh solid #a8a8a8;
+}
+.desk-items {
+  position: absolute;
+  left: 1vw;
+  top: 33%;
+  height: 32%;
+}
+.cabinet {
+  position: absolute;
+  right: 0;
+  bottom: 4vh;
+  height: 92%;
+}
+.credit {
+  position: absolute;
+  top: 2vh;
+  width: 100%;
+  text-align: center;
+  color: #fcfcfc;
+  font-size: max(13px, 2.2vh);
+  line-height: 1.5;
+}
+
+/* 터미널 창: 가운데, 아래 상태 막대 높이만큼 비운다 */
+.stage {
+  position: fixed;
+  inset: 0 0 1.8em 0;
+  display: grid;
+  place-items: center;
+}
+.win {
+  background: #a8a8a8;
+  padding: 3px;
+  border: 2px solid;
+  border-color: #fcfcfc #545454 #545454 #fcfcfc;
+  box-shadow: 6px 6px 0 rgb(0 0 0 / 0.45);
+}
+.title {
+  background: #00a8a8;
+  color: #fcfcfc;
+  text-align: center;
+  padding: 2px 0;
+  margin-bottom: 3px;
+}
+
+/* 이야기 5.0 아래 막대 */
+.status {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1.8em;
+  display: flex;
+  align-items: stretch;
+  background: #a8a8a8;
+  color: #000;
+  border-top: 2px solid #fcfcfc;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.status span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 0.8em;
+  border-right: 2px solid #545454;
+  box-shadow: 1px 0 #fcfcfc;
+}
+.status .clock {
+  margin-left: auto;
+  border-right: 0;
+}
+.status i {
+  width: 0.9em;
+  height: 0.9em;
+  background: #545454;
+  border: 1px solid #000;
+}
+.status i.on {
+  background: #54fc54;
 }
 
 /* 스크롤백을 쓰지 않으므로 오른쪽 스크롤바(하얀 선)를 숨긴다 */

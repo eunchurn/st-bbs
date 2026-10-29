@@ -1,18 +1,18 @@
 "use client";
 
 import "@xterm/xterm/css/xterm.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { playDial } from "./modem";
-import { floor, splash } from "./splash";
+import { Scene } from "./scene";
 
 const BBS_URL = process.env.NEXT_PUBLIC_BBS_URL ?? "ws://localhost:8023/ws";
 const PHONE = "01410";
-// 하이텔 화면은 80x25다. 마지막 줄은 상태 줄이고, 서버는 그 위만 쓴다.
+// 하이텔 화면은 80x24다. 25번째 줄(상태 줄)은 xterm 밖, 이야기 5.0 아래 막대가 맡는다.
 const cols = 80;
-const rows = 25;
+const rows = 24;
 const MAX_LINE = 500;
 const WON_PER_MIN = 20; // 과금 체험용 연출 값. 실제 당시 요금표가 아니다.
-// 글자 크기: 창 높이에 약 42줄이 들어갈 크기. 80x25 화면은 창 가운데에 놓이고 바깥은 검게 남는다.
+// 글자 크기: 창 높이에 약 42줄이 들어갈 크기. 터미널 창은 가운데, 둘레는 이야기 5.0 사무실 그림이다.
 // 창이 좁으면 80칸이 들어가도록 더 줄인다(둥근모 반각 폭은 0.5em).
 const fontSize = () => Math.max(8, Math.min(28, Math.round(innerHeight / 42), Math.floor(innerWidth / (cols * 0.5))));
 // VGA 16색. 하이텔 화면의 파랑·초록·보라가 이 색이다.
@@ -41,6 +41,8 @@ function hms(sec: number) {
   return [sec / 3600, (sec / 60) % 60, sec % 60].map((n) => String(Math.floor(n)).padStart(2, "0")).join(":");
 }
 
+type Live = { phase: "idle" | "dialing" | "online" | "offline"; since: number; hangul: boolean; rd: number };
+
 function toggleFullscreen() {
   const req = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
   req?.catch(() => {}); // iOS Safari 등 지원하지 않는 곳에서는 무시
@@ -48,23 +50,21 @@ function toggleFullscreen() {
 
 export default function Terminal() {
   const el = useRef<HTMLDivElement>(null);
+  // 터미널 쪽이 바꾸고 상태 막대와 그림이 읽는다. 0.25초마다 다시 그린다(RD 불이 깜빡이게).
+  const live = useRef<Live>({ phase: "idle", since: 0, hangul: false, rd: 0 });
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const i = setInterval(() => tick((n) => n + 1), 250);
+    return () => clearInterval(i);
+  }, []);
 
   useEffect(() => {
     let disposed = false;
     let ws: WebSocket | undefined;
     let term: import("@xterm/xterm").Terminal | undefined;
-    let clock: ReturnType<typeof setInterval> | undefined;
-    // 화면을 창 가운데에 둔다. 소수 배율로 늘리면 줄 사이에 가는 틈이 보여서 글자 크기로만 맞춘다.
-    const center = () => {
-      const box = el.current;
-      if (!box?.offsetWidth) return;
-      box.style.left = `${Math.floor((innerWidth - box.offsetWidth) / 2)}px`;
-      box.style.top = `${Math.floor((innerHeight - box.offsetHeight) / 2)}px`;
-    };
-    const fit = () => {
-      if (term) term.options.fontSize = fontSize();
-      requestAnimationFrame(center); // 글자 크기를 바꾸면 xterm이 다음 프레임에 크기를 다시 잰다
-    };
+    const L = live.current;
+    // 가운데 두기는 CSS가 한다. 소수 배율로 늘리면 줄 사이에 틈이 보여서 글자 크기로만 맞춘다.
+    const fit = () => term && (term.options.fontSize = fontSize());
     // 접속 협상 녹음은 미리 받아 둔다. 실패하면 합성음으로 대신한다.
     const handshake = fetch("/sounds/handshake.mp3")
       .then((r) => (r.ok ? r.arrayBuffer() : undefined))
@@ -94,60 +94,36 @@ export default function Terminal() {
       t.unicode.activeVersion = "11";
       t.open(el.current);
       t.focus();
-      center();
       addEventListener("resize", fit);
-      t.write(`\x1b[1;${rows - 1}r`); // 스크롤 영역을 상태 줄 위로 묶어 상태 줄이 밀려 올라가지 않게 한다
 
-      let phase: "idle" | "dialing" | "online" | "offline" = "idle";
-      let since = 0;
-      let hangul = false; // 마지막에 친 글자가 한글이면 <한글>
-      let rd = 0; // 받는 불(RD)이 켜진 시각
       let prompt = "";
       let secret = false;
       let buf = "";
-
-      // 이야기 5.0의 아래 상태 줄: 입력 모드, 모뎀 불(CD·RD), 연결 시간, 글자판, 통신 설정, 요금, 시계
-      const status = () => {
-        const sec = since ? Math.floor((Date.now() - since) / 1000) : 0;
-        const won = (Math.ceil(sec / 60) * WON_PER_MIN).toLocaleString();
-        const light = (on: boolean) => (on ? "\x1b[92;47m■" : "\x1b[90;47m■");
-        const lights = light(phase === "online") + " " + light(phase === "online" && Date.now() - rd < 300);
-        const clock = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul" });
-        const segs = [hangul ? "<한글>-2" : "<영문>-2", `${lights}\x1b[30;47m`, `연결 ${hms(sec).replace(/^00:/, "")}`, "KS5601 완성", "14400-N-8-1", `요금 ${won}원`];
-        let text = segs.map((x) => ` ${x} `).join("\x1b[90;47m│\x1b[30;47m");
-        let used = 0;
-        for (const ch of text.replace(/\x1b\[[0-9;]*m/g, "")) used += width(ch);
-        text += " ".repeat(Math.max(1, cols - used - clock.length - 1)) + clock + " ";
-        t.write(`\x1b7\x1b[${rows};1H\x1b[0;30;47m${text}\x1b[0m\x1b8`);
-      };
 
       // 줄 편집은 브라우저에서 하고, 엔터를 치면 그 줄만 서버로 보낸다.
       const shown = () => prompt + (secret ? "*".repeat([...buf].length) : buf);
       // shortcut: 입력 줄이 80칸을 넘겨 줄바꿈되면 윗줄은 지우지 못한다. 대화실에 긴 글이 많아지면 줄 수만큼 지우도록 고친다.
       const redraw = (before = "") => {
         t.write("\r\x1b[2K" + before + shown());
-        status(); // 서버가 화면을 지우면 상태 줄도 지워진다
       };
 
       const hangup = (msg: string) => {
-        phase = "offline";
-        clearInterval(clock);
+        L.phase = "offline";
+        L.since = 0;
         prompt = buf = "";
-        t.write(splash() + floor([` ${msg}`, " 엔터를 누르면 다시 겁니다.   (s: 소리 없이 접속)"]));
-        status();
+        t.write(`\r\n${msg}\r\n\r\n 엔터를 누르면 다시 겁니다.   (S: 소리 없이 접속)\r\n`);
       };
 
       const connect = () => {
-        ws = new WebSocket(`${BBS_URL}?cols=${cols}&rows=${rows}`);
+        ws = new WebSocket(`${BBS_URL}?cols=${cols}&rows=${rows + 1}`); // 서버는 상태 줄을 뺀 25줄 화면으로 센다
         ws.onopen = () => {
-          phase = "online";
-          since = Date.now();
-          clock = setInterval(status, 1000);
-          t.write("\x1b[0m\x1b[2J\x1b[H CONNECT 14400\r\n");
+          L.phase = "online";
+          L.since = Date.now();
+          t.write("\r\n CONNECT 14400\r\n");
         };
         ws.onmessage = (e) => {
           const m: Msg = JSON.parse(e.data);
-          rd = Date.now();
+          L.rd = Date.now();
           if (m.t === "out") redraw(m.d.replace(/\n/g, "\r\n"));
           else if (m.t === "prompt") {
             prompt = m.d;
@@ -155,13 +131,12 @@ export default function Terminal() {
             redraw();
           } else hangup(" NO CARRIER");
         };
-        ws.onclose = () => !disposed && phase !== "offline" && hangup(" NO CARRIER");
+        ws.onclose = () => !disposed && L.phase !== "offline" && hangup(" NO CARRIER");
       };
 
       const dial = async (sound: boolean) => {
-        phase = "dialing";
-        t.write(floor([" ATZ", " OK", ` ATDT${PHONE}   전화 거는 중... (아무 키나 누르면 건너뜁니다)`]));
-        status();
+        L.phase = "dialing";
+        t.write(`\x1b[2J\x1b[H ATZ\r\n OK\r\n ATDT${PHONE}\r\n 전화 거는 중... (아무 키나 누르면 건너뜁니다)`);
         // AudioContext는 키를 누른 직후(사용자 동작 안)에 만들어야 소리가 난다
         const ctx = sound ? new AudioContext() : undefined;
         const raw = ctx && (await handshake);
@@ -177,20 +152,19 @@ export default function Terminal() {
         if (!disposed) connect();
       };
 
-      t.write(splash() + floor(["", " 엔터: 01410 전화 걸기   S: 소리 없이 접속   Alt+Enter: 전체 화면"]));
-      status();
+      t.write(" 셈틀통신 이야기 5.0  -  하이텔 재현판\r\n\r\n 엔터: 01410 전화 걸기   S: 소리 없이 접속   Alt+Enter: 전체 화면\r\n");
 
       t.onData((d) => {
         if (d === "\x1b\r") return toggleFullscreen(); // Alt+Enter
-        if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(d)) hangul = true;
-        else if (/[a-zA-Z]/.test(d)) hangul = false;
-        if (phase === "dialing") return skip();
-        if (phase === "idle" || phase === "offline") {
+        if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(d)) L.hangul = true; // 마지막에 친 글자로 <한글>/<영문>을 정한다
+        else if (/[a-zA-Z]/.test(d)) L.hangul = false;
+        if (L.phase === "dialing") return skip();
+        if (L.phase === "idle" || L.phase === "offline") {
           if (d === "\r") dial(true);
           else if (d.toLowerCase() === "s") dial(false);
           return;
         }
-        if (phase !== "online" || d.startsWith("\x1b")) return; // 방향키·기능키는 쓰지 않는다
+        if (L.phase !== "online" || d.startsWith("\x1b")) return; // 방향키·기능키는 쓰지 않는다
         for (const ch of d) {
           if (ch === "\r") {
             ws?.send(buf);
@@ -213,12 +187,37 @@ export default function Terminal() {
 
     return () => {
       disposed = true;
-      clearInterval(clock);
       removeEventListener("resize", fit);
       ws?.close();
       term?.dispose();
     };
   }, []);
 
-  return <div ref={el} className="screen" />;
+  const L = live.current;
+  const sec = L.since ? Math.floor((Date.now() - L.since) / 1000) : 0;
+  const online = L.phase === "online";
+  return (
+    <>
+      <Scene online={online} />
+      <div className="stage">
+        <div className="win">
+          <div className="title">이야기 5.0 - 01410 하이텔</div>
+          <div ref={el} />
+        </div>
+      </div>
+      {/* 이야기 5.0의 아래 막대: 입력 모드, 모뎀 불(CD·RD), 연결 시간, 글자판, 통신 설정, 요금, 시계 */}
+      <div className="status">
+        <span>{L.hangul ? "<한글>-2" : "<영문>-2"}</span>
+        <span>
+          <i className={online ? "on" : ""} />
+          <i className={online && Date.now() - L.rd < 300 ? "on" : ""} />
+        </span>
+        <span>연결 {hms(sec)}</span>
+        <span>KS5601 완성</span>
+        <span>1- 14400-N-8-1</span>
+        <span>요금 {(Math.ceil(sec / 60) * WON_PER_MIN).toLocaleString()}원</span>
+        <span className="clock">{new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul" })}</span>
+      </div>
+    </>
+  );
 }
