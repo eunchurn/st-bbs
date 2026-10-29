@@ -21,10 +21,10 @@ type Club = {
   boards?: ClubBoard[];
   castle?: boolean;
   chat?: { no: string; name: string };
-  grid?: { title: string; banner: string; rows: [string, string][][] };
+  grid?: { title: string; banner: string; rows: [string, string][][]; bare?: string[] }; // bare: 글 수를 안 보이는 게시판
   data?: { code: string; name: string; rooms: string[] };
-  info?: string;
-  leave?: string;
+  info?: { no: string; name: string };
+  leave?: { no: string; name: string };
 };
 type Small = { go: string; title: string; clubs: Club[] };
 type Section = { title: string; items: { no: string; name: string }[] };
@@ -228,8 +228,8 @@ const ARTMEDIA: Club = {
   name: "아트미디어",
   desc: ["멀티미디어와 광고, 윈도우즈를 다루는 동호회입니다. 천리안의 A/V 동호회에서 시작해 멀티미디어 동호회를 거쳐 아트미디어가 됐습니다."],
   chat: { no: "c", name: "여기모여 대화를" },
-  info: "am",
-  leave: "99",
+  info: { no: "am", name: "아미동 회원정보" },
+  leave: { no: "99", name: "아미동이여 안녕~" },
   grid: {
     title: "A r t   M e d i a  -  The Special Interest Group",
     banner: "멋진 Windows 와 Multi-Media 의 세계로의 입성을 환영합니다",
@@ -239,6 +239,7 @@ const ARTMEDIA: Club = {
       [["1", "s"], ["2", "b"], ["c", "b1"]],
       [["am", "99"]],
     ],
+    bare: ["w2", "w3"],
   },
   data: {
     code: "b",
@@ -845,11 +846,11 @@ export class Session {
       }
       if (club.chat && c === club.chat.no) return this.enterChat({ no: `${club.go}:${c}`, name: `${club.name} ${club.chat.name}` }, () => this.clubHome(club));
       if (club.data && c === club.data.code) return this.clubData(club);
-      if (club.info && c === club.info) {
+      if (club.info && c === club.info.no) {
         const j = this.db.query("SELECT joined_at FROM club_members WHERE club = ? AND user = ?").get(club.go, this.user) as { joined_at: number } | null;
         return this.clubHome(club, ` 회원 ${this.members(club)}명. ${j ? `${this.user}님은 ${kst(j.joined_at).slice(0, 10)}에 가입했습니다.` : "아직 가입하지 않았습니다. (J)"}`);
       }
-      if (club.leave && c === club.leave) {
+      if (club.leave && c === club.leave.no) {
         if (!member) return this.clubHome(club, " 가입하지 않은 동호회입니다.");
         this.db.query("DELETE FROM club_members WHERE club = ? AND user = ?").run(club.go, this.user);
         return this.clubHome(club, ` ${club.name}에서 탈퇴했습니다. 다시 오시려면 J.`);
@@ -904,12 +905,18 @@ export class Session {
     const names: Record<string, string> = Object.fromEntries((club.boards ?? []).map((b) => [b.no, b.name]));
     if (club.chat) names[club.chat.no] = club.chat.name;
     if (club.data) names[club.data.code] = club.data.name;
-    if (club.info) names[club.info] = `${club.name} 회원정보`;
-    if (club.leave) names[club.leave] = `${club.name}여 안녕~`;
-    const count = (no: string) => (this.db.query("SELECT count(*) AS n FROM posts WHERE board = ?").get(`club:${club.go}:${no}`) as { n: number }).n;
+    if (club.info) names[club.info.no] = club.info.name;
+    if (club.leave) names[club.leave.no] = club.leave.name;
+    // [새 글/전체]: 새 글은 지난번 접속을 끊은 뒤에 올라온 글. 처음 온 사람은 0이다.
+    const count = (no: string) => {
+      const r = this.db
+        .query("SELECT count(*) AS n, count(CASE WHEN created_at > ? THEN 1 END) AS fresh FROM posts WHERE board = ?")
+        .get(this.lastSeen ?? Number.MAX_SAFE_INTEGER, `club:${club.go}:${no}`) as { n: number; fresh: number };
+      return `[${String(r.fresh).padStart(2)}/${String(r.n).padStart(3)}]`;
+    };
     const cell = (no: string) => {
       const label = `${no.toUpperCase().padStart(2)}. ${names[no]}`;
-      const n = (club.boards ?? []).some((b) => b.no === no) ? `[${count(no)}]` : "";
+      const n = (club.boards ?? []).some((b) => b.no === no) && !g.bare?.includes(no) ? count(no) : "";
       return pad(label, 36 - n.length) + n;
     };
     const out = [this.header(`GO ${club.go.toUpperCase()}`, club.name), this.at(4, 1) + HL + center(g.title, 78) + RS];

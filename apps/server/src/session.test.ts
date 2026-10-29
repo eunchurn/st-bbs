@@ -210,7 +210,7 @@ test("아트미디어는 두 줄 첫 화면에서 게시판·보물창고·대�
   seed(a.db);
   await type(a.s, "hitel", "art01", "pass1", "pass1", "go am");
   expect(a.text()).toContain("A2. 광고 아카데미");
-  expect(a.text()).toContain("[15]");
+  expect(a.text()).toContain("[ 0/ 15]");
   await type(a.s, "j", "b", "10", "w", "샘플 교환", "웨이브 파일", "/s", "p", "p", "c");
   expect(a.db.query("SELECT board FROM posts WHERE author = 'art01'").get()).toEqual({ board: "club:am:b:10" });
   expect(a.text()).toContain("아트미디어 여기모여 대화를");
