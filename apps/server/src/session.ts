@@ -8,10 +8,12 @@ export type Out =
 
 export type Size = { cols: number; rows: number };
 
-type Post = { no: number; author: string; title: string; body: string; created_at: number };
+type Post = { no: number; author: string; title: string; body: string; created_at: number; views: number; likes: number };
 type Memo = { id: number; sender: string; body: string; created_at: number; read_at: number | null };
 type Item = { no: string; go: string; name: string };
 type Club = { go: string; name: string; desc: string[] };
+type Small = { go: string; title: string; clubs: Club[] };
+type Section = { title: string; items: { no: string; name: string }[] };
 type Board = { key: string; code: string; title: string; back: () => void; canWrite: () => boolean };
 
 const MAX_LINE = 500;
@@ -23,6 +25,7 @@ const SERVICE = "hitel";
 // 내용은 하이텔처럼 80칸 폭이다. 화면이 더 넓으면 가운데 둔다. 마지막 줄은 브라우저의 상태 줄.
 const WIDTH = 80;
 const LIST_PAGE = 13;
+const LIKES = "(SELECT count(*) FROM post_likes l WHERE l.no = posts.no) AS likes";
 const BODY_PAGE = 16;
 const CLS = "\x1b[2J\x1b[H";
 const HL = "\x1b[1;33m";
@@ -37,10 +40,11 @@ const SHADOW = "\x1b[0;40m";
 
 // 하이텔 초기화면의 세 칸. 번호는 그 화면을 따른다.
 const COMM: Item[] = [
-  { no: "11", go: "board", name: "게시판" },
+  { no: "11", go: "plaza", name: "플라자" },
   { no: "12", go: "memo", name: "쪽지함" },
   { no: "13", go: "chat", name: "대화실" },
   { no: "14", go: "club", name: "동호회/모임" },
+  { no: "15", go: "small", name: "소모임" },
 ];
 const CONTENTS: Item[] = [
   { no: "21", go: "data", name: "자료실" },
@@ -54,12 +58,116 @@ const SPECIAL: Item[] = [
 ];
 const MENU = [...COMM, ...CONTENTS, ...SPECIAL];
 
-// 계획서: 하이텔 과학동호회(go ksc)를 근거로 운영 가능한 곳만 연다. 나머지는 예시.
+// 하이텔에 있던 동호회 이름을 빌렸다. 소개 글은 이 재현을 위해 새로 쓴 것이다.
 const CLUBS: Club[] = [
   { go: "ksc", name: "과학동호회", desc: ["과학을 좋아하는 사람들의 모임입니다.", "하이텔 과학동호회(go ksc)를 본떴습니다."] },
+  { go: "jubu", name: "주부동호회", desc: ["살림 이야기, 아이 키우는 이야기, 오늘 저녁 반찬 이야기를 나눕니다.", "살림하는 분이라면 누구나 반깁니다."] },
+  { go: "osc", name: "OS동호회", desc: ["도스, 윈도우, OS/2, 유닉스까지 운영체제를 이야기합니다.", "설치하다 막히면 질문과답에 올려 주세요."] },
+  { go: "vtgl", name: "VT 자료실", desc: ["VT 접속에 쓰는 통신 프로그램과 설정 이야기를 나눕니다.", "에뮬레이터, 글꼴, 색 설정 무엇이든 좋습니다."] },
+  { go: "kgavt", name: "개오동", desc: ["하이텔의 이름난 동호회였던 개오동이 VT 화면으로 다시 모였습니다.", "옛 회원도 새 회원도 반갑습니다."] },
+  { go: "cgame", name: "고게회", desc: ["고전게임동호회입니다.", "오락실과 PC의 옛 게임을 추억하고 공략을 나눕니다."] },
+  { go: "soft", name: "소프트웨어 동호회", desc: ["쓸 만한 프로그램을 찾고, 써 보고, 평을 남깁니다."] },
+  { go: "prg", name: "프로그래밍전문 동호회", desc: ["C, 파스칼, 어셈블리로 프로그램을 짜는 사람들의 모임입니다.", "소스와 강좌를 나눕니다."] },
+  { go: "hanpro", name: "한글프로그래밍 동호회", desc: ["한글 입출력, 조합형과 완성형, 한글 글꼴을 다루는 프로그래밍 모임입니다."] },
+  { go: "semtle", name: "셈틀가락", desc: ["컴퓨터 음악 동호회입니다. 셈틀은 컴퓨터, 가락은 음악을 뜻하는 우리말입니다.", "미디, 시퀀서, 사운드카드 이야기를 나눕니다."] },
+  { go: "ani", name: "애니메이트", desc: ["애니메이션을 좋아하는 사람들의 모임입니다.", "감상평, 그림, 새 작품 소식을 나눕니다."] },
+  { go: "metal", name: "METAL 동호회", desc: ["헤비메탈을 듣고 이야기하는 사람들의 모임입니다.", "음반 평과 공연 소식을 나눕니다."] },
   { go: "music", name: "음악동호회", desc: ["듣고, 연주하고, 이야기합니다."] },
   { go: "movie", name: "영화동호회", desc: ["지난주에 본 영화 이야기를 나눕니다."] },
 ];
+
+const small = (go: string, name: string, desc?: string[]): Club => ({
+  go,
+  name,
+  desc: desc ?? [`'${name}'에 오신 것을 환영합니다.`, "같은 것을 좋아하는 사람끼리 모인 소모임입니다. 이야기방에 인사를 남겨 주세요."],
+});
+
+// 소모임은 주제(분류)별로 모인다. 오락/게임 목록은 하이텔 FFUN 화면을 옮겼다.
+const SMALLS: Small[] = [
+  {
+    go: "ffun",
+    title: "오락/게임",
+    clubs: [
+      CLUBS.find((c) => c.go === "cgame")!,
+      small("tcg", "트레이딩 카드게임"),
+      small("neoris", "그라비티 사랑 소모임 '네오리스'"),
+      small("kofh", "컨오브하트를 즐기는 사람들 모임"),
+      small("rondbel", "로봇대전 소모임 '론드-벨'"),
+      small("bsgame", "미소녀게임연구소"),
+      small("leaf", "Leaf Lovers' Life"),
+      small("dcast", "드림캐스트를 사랑하는 사람들의 모임"),
+      small("elf", "The Forum of elf 'Sweet on You'"),
+      small("jedi", "스타워즈 소모임 '제다이'"),
+      small("sam3", "삼국지 클럽"),
+      small("genesis", "창세기전 게임클럽"),
+      small("ff", "FINAL FANTASY '유구한 바람의 환타지'"),
+      small("piacar", "피아 캐롯 사랑모임"),
+      small("pump", "펌프(pumpitup) 매니아"),
+      small("guwon", "구원의 반 사랑 모임"),
+      small("legend", "은하영웅전설 클럽"),
+    ],
+  },
+  {
+    go: "flit",
+    title: "문학/독서",
+    clubs: [
+      small("ida", "이다", ["글을 올리고 생각을 나누며 토론하는 문학 모임입니다.", "시, 소설, 비평 무엇이든 좋습니다."]),
+      small("litread", "리터란 독서", ["읽은 책의 서평과 독서 일기를 올리는 곳입니다."]),
+      small("serial", "연재소설방", ["소설을 한 회씩 연재하는 곳입니다.", "등단하지 않아도 누구나 연재할 수 있습니다."]),
+    ],
+  },
+];
+
+// 하이텔 자료실 [분류] 화면. 번호마다 게시판 하나다(파일 대신 글로 자료를 소개한다).
+const DATA: { row: number; col: number; color: string; section: Section }[] = [
+  { row: 4, col: 2, color: GREEN, section: { title: "게      임", items: [
+    { no: "1", name: "액션/아케이드/스포츠" }, { no: "2", name: "시뮬/롤플/어드벤처" }, { no: "3", name: "퍼즐/카드/기타 게임" },
+    { no: "4", name: "에뮬/음악 게임" }, { no: "5", name: "동영상/사운드/이미지" }, { no: "6", name: "패치/맵/세이브/기타" },
+  ] } },
+  { row: 4, col: 28, color: PURPLE, section: { title: "유틸리티/컴퓨터", items: [
+    { no: "11", name: "유틸리티" }, { no: "12", name: "인터넷/통신" }, { no: "13", name: "멀티미디어" }, { no: "14", name: "하드웨어/드라이버" },
+    { no: "15", name: "OS관련" }, { no: "16", name: "프로그래밍" }, { no: "17", name: "기타 유틸리티" },
+  ] } },
+  { row: 4, col: 54, color: CYAN, section: { title: "데   이   터", items: [
+    { no: "21", name: "음악/사운드" }, { no: "22", name: "동영상 데이터" }, { no: "23", name: "그래픽 데이터" }, { no: "24", name: "문서 데이터" },
+  ] } },
+  { row: 14, col: 2, color: CYAN, section: { title: "테마 자료실", items: [
+    { no: "31", name: "홈페이지 자료실" }, { no: "32", name: "프리웨어 자료실" }, { no: "33", name: "이벤트 자료실" },
+    { no: "81", name: "S/W 광장" }, { no: "82", name: "전문 자료" },
+  ] } },
+  { row: 14, col: 28, color: PURPLE, section: { title: "자료실 게시판", items: [
+    { no: "41", name: "자료실 Q & A" }, { no: "42", name: "자료 추천" }, { no: "43", name: "중복/불량자료신고" },
+    { no: "44", name: "자료 요청" }, { no: "45", name: "강좌/메뉴얼" }, { no: "46", name: "자유 게시판" },
+  ] } },
+  { row: 14, col: 54, color: GREEN, section: { title: "추천/새 자료", items: [
+    { no: "51", name: "오늘의 추천자료" }, { no: "52", name: "운영자 추천자료" }, { no: "53", name: "새로 등록된자료" }, { no: "54", name: "하이텔 관련자료" },
+  ] } },
+];
+
+// 하이텔 대화실 [분류] 화면. 위 셋, 아래 셋.
+const CHAT_GUIDE = "99";
+const CHAT_MEMO = "53";
+const CHATS: Section[] = [
+  { title: "번개팅이 좋아", items: [
+    { no: "1", name: "느낌있는 대화" }, { no: "2", name: "자유로운 대화" }, { no: "3", name: "초보자 대화실" }, { no: "4", name: "타자 방" }, { no: "5", name: "함께 만드는 대화실" },
+  ] },
+  { title: "지역별 대화실", items: [
+    { no: "21", name: "서울특별시" }, { no: "22", name: "인천/경기/강원" }, { no: "23", name: "대전/충청" },
+    { no: "24", name: "광주/전라" }, { no: "25", name: "대구/울산/경상" }, { no: "26", name: "부산/제주" },
+  ] },
+  { title: "우리끼리 좋아", items: [
+    { no: "41", name: "초등학생 끼리끼리" }, { no: "42", name: "중학생 모여라" }, { no: "43", name: "고등학생 대화실" },
+    { no: "44", name: "대학생 대화실" }, { no: "45", name: "직장인의 휴식처" }, { no: "46", name: "게임좋아하는 사람" },
+  ] },
+  { title: "특화 대화실", items: [
+    { no: "11", name: "여성 대화실" }, { no: "12", name: "주부 대화실" }, { no: "13", name: "연령별 대화실" },
+    { no: "14", name: "영어 대화실" }, { no: "15", name: "장애인 대화실" }, { no: "16", name: "KETEL 대화실" },
+  ] },
+  { title: "MULTI - CHAT", items: [{ no: "31", name: "인터넷 대화실" }, { no: "32", name: "스타 채팅" }, { no: "77", name: "미팅/펜팔" }] },
+  { title: "메모 / 안내", items: [{ no: CHAT_MEMO, name: "대화실 메모란" }, { no: CHAT_GUIDE, name: "대화실 이용안내" }] },
+];
+const ROOMS = CHATS.slice(0, 5).flatMap((c) => c.items);
+
 const CLUB_BOARDS = [
   { no: "1", key: "talk", name: "이야기방" },
   { no: "2", key: "qna", name: "질문과답" },
@@ -78,16 +186,21 @@ export const LOGO = [0, 1, 2, 3, 4]
   .map((row) => " ".repeat(12 + 4 - row) + [..."HITEL"].map((ch) => GLYPHS[ch][row]).join("   ").trimEnd())
   .join("\n");
 
-// 계획서의 운영 규칙에서 가져온 공지
-const NOTICES: { title: string; body: string[] }[] = [
-  { title: "하이텔 한시 운영 안내", body: ["이 서비스는 정해진 기간 동안만 열립니다.", "운영이 끝나면 '접속 끊기' 후 읽기 전용 아카이브로 남습니다."] },
-  { title: "개인정보를 입력하지 마십시오", body: ["실명, 주민등록번호, 연락처는 받지 않습니다.", "ID와 비밀번호만으로 가입합니다."] },
-  { title: "'님' 문화와 1인 1 ID", body: ["호칭은 형·누나가 아니라 '님'입니다.", "한 사람이 한 ID를 쓰는 것이 예의입니다."] },
-  { title: "게시판·동호회·쪽지 안내", body: ["go board 게시판, go club 동호회, go memo 쪽지함.", "글은 200행까지 쓸 수 있고 /s 로 저장합니다."] },
+// 로그인하면 보이는 공지 목록. 하이텔 공지 화면처럼 오른쪽에 날짜를 둔다.
+const NOTICES: { title: string; date: string; body: string[] }[] = [
+  { title: "하이텔 한시 운영 안내", date: "10/29", body: ["이 서비스는 정해진 기간 동안만 열립니다.", "운영이 끝나면 '접속 끊기' 후 읽기 전용 아카이브로 남습니다."] },
+  { title: "개인정보를 입력하지 마십시오", date: "10/29", body: ["실명, 주민등록번호, 연락처는 받지 않습니다.", "ID와 비밀번호만으로 가입합니다."] },
+  { title: "'님' 문화와 1인 1 ID", date: "10/29", body: ["호칭은 형·누나가 아니라 '님'입니다.", "한 사람이 한 ID를 쓰는 것이 예의입니다."] },
+  { title: "플라자 '큰마을' 개장..GO PLAZA", date: "10/29", body: ["누구나 글을 쓰는 큰마을이 열렸습니다.", "글을 읽고 V를 누르면 추천할 수 있습니다."] },
+  { title: "동호회 회원 모집 - 셈틀가락, 고게회, 개오동 외..GO CLUB", date: "10/29", body: ["동호회 첫 화면에서 J를 누르면 가입합니다.", "동호회 게시판에는 회원만 글을 씁니다."] },
+  { title: "소모임 [오락/게임] 17곳 개설..GO FFUN", date: "10/29", body: ["소모임은 주제별로 모여 있습니다. go small 에서 분류를 고르세요."] },
+  { title: "자료광장 분류 안내..GO DATA", date: "10/29", body: ["게임, 유틸리티, 데이터, 테마 자료실로 나뉩니다.", "파일 대신 글로 자료를 소개합니다."] },
+  { title: "대화실 개편 - 지역별/우리끼리 대화실..GO CHAT", date: "10/29", body: ["대화실이 여러 방으로 나뉘었습니다.", "참가자는 /W, 나가기는 /Q 입니다."] },
+  { title: "글쓰기 안내 - 200행까지, /s 로 저장", date: "10/29", body: ["글은 200행까지 쓸 수 있습니다.", "/s 저장, /a 취소."] },
 ];
 
 const online = new Set<Session>();
-const chat = new Set<Session>();
+const rooms = new Map<string, Set<Session>>(); // 대화방 번호 → 참가자
 
 // 터미널에서 차지하는 칸 수. 한글·한자·전각 문자는 2칸. 색 바꾸는 코드는 0칸.
 export function cells(s: string) {
@@ -144,6 +257,13 @@ function kst(ms: number) {
   return new Date(ms).toLocaleString("sv-SE", { timeZone: "Asia/Seoul" }); // "2026-10-29 19:44:00"
 }
 
+// "26년 10월 29일(목) 21시 43분 28초"
+function longKst(ms: number) {
+  const d = new Date(ms + 9 * 3600_000);
+  const day = "일월화수목금토"[d.getUTCDay()];
+  return `${String(d.getUTCFullYear()).slice(2)}년 ${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일(${day}) ${d.getUTCHours()}시 ${d.getUTCMinutes()}분 ${d.getUTCSeconds()}초`;
+}
+
 const mmdd = (ms: number) => kst(ms).slice(5, 10).replace("-", "/");
 
 function hms(sec: number) {
@@ -161,6 +281,9 @@ export class Session {
   private handler: (line: string) => unknown = () => {};
   private queue: Promise<unknown> = Promise.resolve();
   private chatTimer?: ReturnType<typeof setTimeout>;
+  private room?: { no: string; name: string };
+  private lastSeen: number | null = null;
+  private up: () => void = () => this.clubList(); // 동호회 첫 화면에서 P로 돌아갈 목록
   private cols: number;
   private margin: string; // 80칸 내용을 가운데 두는 왼쪽 여백
   private top: number; // 24줄 본문을 세로 가운데 두는 위쪽 여백(머리 두 줄은 늘 맨 위)
@@ -176,17 +299,22 @@ export class Session {
     this.top = Math.floor((size.rows - 25) / 2);
   }
 
+  // 하이텔 텔넷 첫 화면을 따랐다(파란 광고 상자는 뺐다)
   start() {
+    const INV = "\x1b[0;30;47m";
     this.print(
       [
         "",
-        "### 하이텔에 연결되었습니다.(korea:pc)",
-        "### Welcome to HITEL!!!",
-        `### 서비스 명에 ${SERVICE}을 입력하십시오.`,
+        `\x1b[1;37m${LOGO}${RS}`,
+        "",
+        `${INV}[통  신]${RS} 01410 으로 접속하셨습니다. 모뎀속도 14400bps (지역 : 전국사용가능)`,
+        "",
+        `${INV}## 이용자ID가 없거나 신규/무료가입을 하시려면 '${SERVICE}'을 입력하십시오.${RS}`,
+        `\x1b[1;36m<> 오늘의 추천정보 : 옛 오락실 게임을 추억하는 고게회!! go cgame${RS}`,
         "",
       ].join("\n"),
     );
-    this.askService();
+    this.askId();
   }
 
   // 비밀번호 해시가 비동기라 입력은 한 줄씩 차례로 처리한다.
@@ -203,6 +331,7 @@ export class Session {
 
   end() {
     this.handler = () => {};
+    if (this.user) this.db.query("UPDATE users SET last_seen = ? WHERE id = ?").run(Date.now(), this.user);
     this.leaveChat();
     online.delete(this);
   }
@@ -271,58 +400,36 @@ export class Session {
 
   // ---- 접속과 로그인 (케텔·하이텔 접속 화면을 따른다) ----
 
-  private askService() {
-    this.ask("서비스 명(login):", (line) => {
-      if (line.trim().toLowerCase() !== SERVICE) {
-        this.print(`### 서비스 명이 바르지 않습니다. ${SERVICE}을 입력하십시오.`);
-        return this.askService();
-      }
-      this.print(
-        [
-          "",
-          `\x1b[1;37m${LOGO}${RS}`,
-          "",
-          "                    <<<알립니다>>>",
-          "",
-          ...NOTICES.map((n, i) => ` ${i + 1}.<<${n.title}>>`),
-          "",
-        ].join("\n"),
-      );
-      this.askNotice();
-    });
-  }
-
-  private askNotice() {
-    this.ask("  ** 공지사항을 보시겠습니까(번호/N)? ", (line) => {
-      const n = NOTICES[Number(line.trim()) - 1];
-      if (!n) {
-        this.print("");
-        return this.askId();
-      }
-      this.print(["", ` <<${n.title}>>`, ...n.body.map((l) => "   " + l), ""].join("\n"));
-      this.askNotice();
-    });
-  }
-
   private askId(tries = 0) {
-    this.ask(" 사용자 ID : ", (line) => {
+    this.ask("이용자ID : ", (line) => {
       const id = line.trim().toLowerCase();
       if (!id) return this.askId(tries);
+      if (id === SERVICE) return this.newId();
       const row = this.db.query("SELECT pw FROM users WHERE id = ?").get(id) as { pw: string } | null;
       if (row) return this.askPw(id, row.pw, tries);
-      if (!ID_RE.test(id)) {
+      this.print(`  등록되지 않은 ID입니다. 가입하시려면 '${SERVICE}'을 입력하십시오.`);
+      this.askId(tries);
+    });
+  }
+
+  private newId() {
+    this.ask("  사용할 ID(영문으로 시작하는 3~8자) : ", (line) => {
+      const id = line.trim().toLowerCase();
+      if (!ID_RE.test(id) || id === SERVICE) {
         this.print("  ID는 영문으로 시작하는 3~8자의 영문·숫자입니다.");
-        return this.askId(tries);
+        return this.newId();
       }
-      this.ask(`  '${id}'는 처음 보는 ID입니다. 새로 가입할까요? (Y/N) `, (yn) =>
-        yn.trim().toLowerCase() === "y" ? this.signup(id) : this.askId(tries),
-      );
+      if (this.db.query("SELECT 1 FROM users WHERE id = ?").get(id)) {
+        this.print(`  '${id}'는 이미 있는 ID입니다.`);
+        return this.newId();
+      }
+      this.signup(id);
     });
   }
 
   private askPw(id: string, hash: string, tries: number) {
     this.ask(
-      "  비밀번호 : ",
+      "비밀 번호 : ",
       async (pw) => {
         if (await Bun.password.verify(pw, hash)) return this.welcome(id);
         if (tries >= 2) {
@@ -370,14 +477,57 @@ export class Session {
   }
 
   private welcome(id: string, greet = `${id}님 반갑습니다.`) {
+    const row = this.db.query("SELECT last_seen FROM users WHERE id = ?").get(id) as { last_seen: number | null };
     this.user = id;
     this.since = Date.now();
+    this.lastSeen = row.last_seen;
     online.add(this);
+    this.noticeList(` ${HL}${greet}${RS}`);
+  }
+
+  // 로그인 직후 공지 목록. 번호는 공지, 엔터는 초기화면, 메뉴 번호와 GO도 통한다.
+  private noticeList(notice = "") {
     const unread = this.unread();
-    this.main(
-      ` ${HL}${greet}${RS} 지금 ${online.size}명이 접속해 있습니다.` +
-        (unread ? `  ${HL}새 쪽지 ${unread}통${RS} (go memo)` : ""),
+    this.draw(
+      [
+        this.at(2, 1) + ` 최근 Logout 시각 : ${this.lastSeen ? longKst(this.lastSeen) : "처음 오셨습니다"}`,
+        this.at(3, 1) + ` 지금 ${online.size}명이 접속해 있습니다.` + (unread ? `  ${HL}새 쪽지 ${unread}통${RS} (R)` : ""),
+        this.at(5, 1) + center("<<<     공  지  사  항     >>>", WIDTH),
+        this.lines(6, 1, NOTICES.map((n, i) => `${String(i + 1).padStart(3)}. ${pad(n.title, 66)}${n.date}`)),
+        this.at(21, 1) + notice,
+        this.at(22, 1) + " 번호/명령(H.도움말 R.쪽지읽기 ENTER.초기화면 GO.직접이동)",
+      ].join(""),
+      23,
     );
+    this.ask(">> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (!c) return this.main();
+      if (c === "h") return this.noticeList(" 번호는 공지 읽기, 엔터는 초기화면, R은 쪽지함, 'go 이름'은 바로 이동입니다.");
+      if (c === "r") return this.memoList();
+      const n = /^\d+$/.test(c) ? NOTICES[Number(c) - 1] : undefined;
+      if (n) return this.noticeRead(n);
+      const item = MENU.find((m) => m.no === c || m.go === c);
+      if (item) return this.open(item);
+      if (this.nav(c)) return;
+      this.noticeList(" 잘못된 명령입니다. (H.도움말)");
+    });
+  }
+
+  private noticeRead(n: (typeof NOTICES)[number]) {
+    this.draw(
+      [
+        this.header("NOTICE", "공지사항"),
+        this.at(4, 1) + ` ${HL}${n.title}${RS}`,
+        this.at(5, 1) + HR,
+        this.lines(6, 1, n.body.flatMap((l) => wrap(l, 74)).map((l) => " " + l)),
+      ].join(""),
+      22,
+    );
+    this.ask(" 목록(엔터) >> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (c && this.nav(c)) return;
+      this.noticeList();
+    });
   }
 
   private bye() {
@@ -396,21 +546,33 @@ export class Session {
     if (c === "t" || c === "top") return this.main(), true;
     if (c === "x" || c === "bye") return this.bye(), true;
     if (!c.startsWith("go ")) return false;
-    const name = c.slice(3).trim();
+    const name = c.slice(3).trim() === "board" ? "plaza" : c.slice(3).trim(); // 예전 이름 go board도 받는다
     const item = MENU.find((m) => m.go === name || m.no === name);
     if (item) return this.open(item), true;
-    const club = CLUBS.find((cl) => cl.go === name);
-    if (club) return this.clubHome(club), true;
-    return false;
+    const cat = SMALLS.find((g) => g.go === name);
+    if (cat) return this.smallList(cat), true;
+    return this.openClub(name);
+  }
+
+  private openClub(go: string) {
+    const club = CLUBS.find((cl) => cl.go === go);
+    if (club) return (this.up = () => this.clubList()), this.clubHome(club), true;
+    const cat = SMALLS.find((g) => g.clubs.some((cl) => cl.go === go));
+    if (!cat) return false;
+    this.up = () => this.smallList(cat);
+    this.clubHome(cat.clubs.find((cl) => cl.go === go)!);
+    return true;
   }
 
   private open(item: Item) {
-    if (item.go === "board") {
-      this.board = { key: "free", code: "BOARD", title: "게시판 [자유게시판]", back: () => this.main(), canWrite: () => true };
+    if (item.go === "plaza") {
+      this.board = { key: "free", code: "PLAZA", title: "큰마을", back: () => this.main(), canWrite: () => true };
       return this.boardList(0);
     }
-    if (item.go === "chat") return this.enterChat();
+    if (item.go === "chat") return this.chatList();
     if (item.go === "club") return this.clubList();
+    if (item.go === "small") return this.smallCats();
+    if (item.go === "data") return this.dataList();
     if (item.go === "memo") return this.memoList();
     this.main(` [${item.name}] 준비 중인 메뉴입니다.`);
   }
@@ -428,7 +590,7 @@ export class Session {
         this.lines(8, 4, items(COMM)),
         this.lines(8, 30, items(CONTENTS)),
         this.at(15, 1) + notice,
-        this.at(17, 1) + " 이동(GO) 게시판(BOARD) 쪽지(MEMO) 대화(CHAT) 동호회(CLUB) 처음(T) 종료(X)",
+        this.at(17, 1) + " 이동(GO) 플라자(PLAZA) 쪽지(MEMO) 대화(CHAT) 동호회(CLUB) 처음(T) 종료(X)",
       ].join(""),
       18,
     );
@@ -450,13 +612,15 @@ export class Session {
     const pages = Math.max(1, Math.ceil(total / LIST_PAGE));
     this.page = Math.min(Math.max(page, 0), pages - 1);
     const posts = this.db
-      .query("SELECT no, author, title, created_at FROM posts WHERE board = ? ORDER BY no DESC LIMIT ? OFFSET ?")
+      .query(`SELECT no, author, title, created_at, views, ${LIKES} FROM posts WHERE board = ? ORDER BY no DESC LIMIT ? OFFSET ?`)
       .all(b.key, LIST_PAGE, this.page * LIST_PAGE) as Post[];
-    const rows = posts.map((p) => ` ${String(p.no).padStart(4)}  ${pad(p.title, 46)}${pad(p.author, 10)}${mmdd(p.created_at)}`);
+    // 하이텔 플라자처럼 번호·이름·날짜·조회·추천·제목 순서
+    const num = (n: number) => String(n).padStart(4);
+    const rows = posts.map((p) => ` ${num(p.no)}  ${pad(p.author, 9)}${pad(mmdd(p.created_at), 7)}${num(p.views)} ${num(p.likes)}  ${pad(p.title, 42)}`);
     this.draw(
       [
         this.header(b.code, b.title, `${this.page + 1}/${pages}쪽`),
-        this.head(4, 2, 76, ` 번호  ${pad("제목", 46)}${pad("글쓴이", 10)}날짜`, CYAN),
+        this.head(4, 2, 76, pad(`번호  ${pad("이름", 9)}${pad("날짜", 7)}조회 추천  제목`, 76), CYAN),
         this.lines(6, 1, rows.length ? rows : ["  아직 글이 없습니다. w로 첫 글을 써 보세요."]),
         this.at(20, 1) + notice,
         this.at(21, 1) + " 읽기(번호) 쓰기(W) 다음(N) 앞(B) 이전(P) 처음(T) 종료(X)",
@@ -476,8 +640,9 @@ export class Session {
     });
   }
 
-  private readPost(no: number, from = 0) {
-    const p = this.db.query("SELECT * FROM posts WHERE no = ? AND board = ?").get(no, this.board.key) as Post | null;
+  private readPost(no: number, from = 0, notice = "") {
+    if (from === 0 && !notice) this.db.query("UPDATE posts SET views = views + 1 WHERE no = ? AND board = ?").run(no, this.board.key);
+    const p = this.db.query(`SELECT *, ${LIKES} FROM posts WHERE no = ? AND board = ?`).get(no, this.board.key) as Post | null;
     if (!p) return this.boardList(this.page, " 그런 번호의 글은 없습니다.");
     const lines = p.body.split("\n");
     const more = from + BODY_PAGE < lines.length;
@@ -485,15 +650,20 @@ export class Session {
       [
         this.header(this.board.code, this.board.title),
         this.at(4, 1) + ` ${HL}${p.no}. ${p.title}${RS}`,
-        this.at(5, 1) + ` 글쓴이 ${p.author}   ${kst(p.created_at).slice(0, 16)}`,
+        this.at(5, 1) + ` 글쓴이 ${p.author}   ${kst(p.created_at).slice(0, 16)}   조회 ${p.views}  추천 ${p.likes}`,
         this.at(6, 1) + HR,
         this.lines(7, 1, lines.slice(from, from + BODY_PAGE).map((l) => " " + l)),
-        this.at(23, 1) + HR,
+        this.at(23, 1) + (notice || HR),
       ].join(""),
       24,
     );
-    this.ask(more ? " 계속(엔터) 목록(Q) >> " : " 목록(엔터) >> ", (line) => {
+    this.ask(more ? " 계속(엔터) 추천(V) 목록(Q) >> " : " 추천(V) 목록(엔터) >> ", (line) => {
       const c = line.trim().toLowerCase();
+      if (c === "v") {
+        if (p.author === this.user) return this.readPost(no, from, " 자기 글은 추천할 수 없습니다.");
+        const { changes } = this.db.query("INSERT OR IGNORE INTO post_likes (no, user) VALUES (?, ?)").run(no, this.user);
+        return this.readPost(no, from, changes ? ` ${HL}추천했습니다.${RS}` : " 이미 추천한 글입니다.");
+      }
       if (more && !c) return this.readPost(no, from + BODY_PAGE);
       if (/^\d+$/.test(c)) return this.readPost(Number(c));
       if (c && c !== "q" && this.nav(c)) return;
@@ -542,12 +712,15 @@ export class Session {
   }
 
   private clubList(notice = "") {
-    const rows = CLUBS.map((c) => ` go ${pad(c.go, 8)}${pad(c.name, 16)}회원 ${this.members(c)}명${this.isMember(c) ? "  (가입)" : ""}`);
-    const [list, next] = this.box(6, 12, 58, ["", ...rows, ""]);
+    // 두 줄로 늘어놓는다. 가입한 곳은 앞에 *.
+    const cell = (c: Club) => `${this.isMember(c) ? "*" : " "}go ${pad(c.go, 7)}${pad(c.name, 21)}${String(this.members(c)).padStart(3)}명`;
+    const half = Math.ceil(CLUBS.length / 2);
+    const rows = CLUBS.slice(0, half).map((c, i) => cell(c) + (CLUBS[half + i] ? cell(CLUBS[half + i]) : ""));
+    const [list, next] = this.box(6, 2, 76, ["", ...rows, ""]);
     this.draw(
       [
         this.header("CLUB", "동호회/모임"),
-        this.head(4, 12, 58, "동 호 회   목 록", GREEN),
+        this.head(4, 2, 76, "동 호 회   목 록", GREEN),
         list,
         this.at(next + 1, 1) + notice,
         this.at(next + 3, 1) + " 들어가기(이름, 예: ksc) 이전(P) 처음(T) 종료(X)",
@@ -558,8 +731,8 @@ export class Session {
       const c = line.trim().toLowerCase();
       if (!c) return this.clubList();
       if (c === "p") return this.main();
-      const club = CLUBS.find((cl) => cl.go === c || `go ${cl.go}` === c);
-      if (club) return this.clubHome(club);
+      const go = c.replace(/^go /, "");
+      if (CLUBS.some((cl) => cl.go === go)) return this.openClub(go);
       if (this.nav(c)) return;
       this.clubList(" 그런 동호회는 없습니다.");
     });
@@ -590,7 +763,7 @@ export class Session {
     this.ask(" >> ", (line) => {
       const c = line.trim().toLowerCase();
       if (!c) return this.clubHome(club);
-      if (c === "p") return this.clubList();
+      if (c === "p") return this.up();
       if (c === "j") {
         if (member) return this.clubHome(club, " 이미 가입한 동호회입니다.");
         this.db.query("INSERT OR IGNORE INTO club_members (club, user, joined_at) VALUES (?, ?, ?)").run(club.go, this.user, Date.now());
@@ -609,6 +782,81 @@ export class Session {
       }
       if (this.nav(c)) return;
       this.clubHome(club, " 잘못된 명령입니다.");
+    });
+  }
+
+  // ---- 소모임 ----
+
+  private smallCats(notice = "") {
+    const rows = SMALLS.map((g, i) => ` ${i + 1}. ${pad(g.title, 14)}go ${pad(g.go, 8)}소모임 ${g.clubs.length}개`);
+    const [list, next] = this.box(6, 12, 58, ["", ...rows, ""]);
+    this.draw(
+      [
+        this.header("SMALL", "소모임 [분류]"),
+        this.head(4, 12, 58, "주 제 별   소 모 임", PURPLE),
+        list,
+        this.at(next + 1, 1) + notice,
+        this.at(next + 3, 1) + " 들어가기(번호) 이전(P) 처음(T) 종료(X)",
+      ].join(""),
+      next + 4,
+    );
+    this.ask(" >> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (!c) return this.smallCats();
+      if (c === "p") return this.main();
+      const cat = SMALLS[Number(c) - 1] ?? SMALLS.find((g) => g.go === c.replace(/^go /, ""));
+      if (cat) return this.smallList(cat);
+      if (this.nav(c)) return;
+      this.smallCats(" 그런 분류는 없습니다.");
+    });
+  }
+
+  // 하이텔 FFUN 화면처럼 번호 붙은 한 줄 목록
+  private smallList(cat: Small, notice = "") {
+    const rows = cat.clubs.map((cl, i) => `${String(i + 1).padStart(4)}. ${pad(cl.name, 50)}go ${cl.go}`);
+    this.draw(
+      [
+        this.header(cat.go.toUpperCase(), `${cat.title} [분류]`),
+        this.lines(4, 1, rows),
+        this.at(21, 1) + notice,
+        this.at(22, 1) + " 들어가기(번호) 이전(P) 처음(T) 종료(X)",
+      ].join(""),
+      23,
+    );
+    this.ask(" >> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (!c) return this.smallList(cat);
+      if (c === "p") return this.smallCats();
+      const club = cat.clubs[Number(c) - 1];
+      if (club) return (this.up = () => this.smallList(cat)), this.clubHome(club);
+      if (this.nav(c)) return;
+      this.smallList(cat, " 그런 번호의 소모임은 없습니다.");
+    });
+  }
+
+  // ---- 자료실 ----
+
+  private dataList(notice = "") {
+    this.draw(
+      [
+        this.header("GL", "자료실 [자료광장]"),
+        ...DATA.map((d) => this.head(d.row, d.col, 24, d.section.title, d.color) + this.lines(d.row + 2, d.col, d.section.items.map((it) => `${it.no.padStart(2)}. ${it.name}`))),
+        this.at(22, 1) + notice,
+        this.at(23, 1) + " 들어가기(번호) 이전(P) 처음(T) 종료(X)",
+      ].join(""),
+      24,
+    );
+    this.ask(" >> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (!c) return this.dataList();
+      if (c === "p") return this.main();
+      const it = DATA.flatMap((d) => d.section.items).find((i) => i.no === c);
+      if (it) {
+        this.board = { key: `data:${it.no}`, code: "GL", title: `자료실 [${it.name}]`, back: () => this.dataList(), canWrite: () => true };
+        return this.boardList(0);
+      }
+      if (this.nav(c)) return;
+      this.dataList(" 그런 번호의 자료실은 없습니다.");
     });
   }
 
@@ -694,9 +942,52 @@ export class Session {
 
   // ---- 대화실 ----
 
-  private enterChat() {
-    chat.add(this);
-    this.draw(this.header("CHAT", "대화실", `지금 ${chat.size}명`), 4);
+  // 대화실 [분류]: 테두리 상자 여섯 개. 방 이름 옆 (n)은 지금 있는 사람 수.
+  private chatList(notice = "") {
+    const frame = (row: number, col: number, sec: Section) => {
+      const w = 26;
+      const left = Math.floor((w - 2 - cells(sec.title)) / 2);
+      const B = "\x1b[0;1;37m";
+      let out = this.at(row, col) + B + "┌" + "─".repeat(left) + HL + sec.title + B + "─".repeat(w - 2 - left - cells(sec.title)) + "┐";
+      for (let i = 0; i < 6; i++) {
+        const it = sec.items[i];
+        const n = it ? (rooms.get(it.no)?.size ?? 0) : 0;
+        const text = it ? pad(` ${it.no}.${it.name}`, n ? 20 : 24) + (n ? HL + pad(`(${n})`, 4) : "") : " ".repeat(24);
+        out += this.at(row + 1 + i, col) + B + "│" + RS + text + B + "│";
+      }
+      return out + this.at(row + 7, col) + B + "└" + "─".repeat(w - 2) + "┘" + RS;
+    };
+    this.draw(
+      [
+        this.header("CHATTING", "대화실 [분류]"),
+        ...CHATS.map((sec, i) => frame(i < 3 ? 3 : 11, 1 + (i % 3) * 26, sec)),
+        this.at(19, 1) + notice,
+        this.at(20, 1) + " 들어가기(번호) 이전(P) 처음(T) 종료(X)",
+      ].join(""),
+      21,
+    );
+    this.ask(" >> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (!c) return this.chatList();
+      if (c === "p") return this.main();
+      const room = ROOMS.find((r) => r.no === c);
+      if (room) return this.enterChat(room);
+      if (c === CHAT_GUIDE) return this.chatList(" 참가자는 /W, 나가기는 /Q. 호칭은 '님'. 25분이 지나면 쉬어 가라고 알려 드립니다.");
+      if (c === CHAT_MEMO) {
+        this.board = { key: "chat:memo", code: "CHATTING", title: "대화실 메모란", back: () => this.chatList(), canWrite: () => true };
+        return this.boardList(0);
+      }
+      if (this.nav(c)) return;
+      this.chatList(" 그런 번호의 대화실은 없습니다.");
+    });
+  }
+
+  private enterChat(room: { no: string; name: string }) {
+    const people = rooms.get(room.no) ?? new Set<Session>();
+    rooms.set(room.no, people);
+    people.add(this);
+    this.room = room;
+    this.draw(this.header("CHATTING", `${room.no}. ${room.name}`, `지금 ${people.size}명`), 4);
     this.print(" 들어왔습니다. '님' 문화를 지켜 주세요.   참가자(/W) 나가기(/Q)");
     this.broadcast(` *** ${this.user}님이 들어오셨습니다.`, this);
     this.chatTimer = setTimeout(() => this.print(" *** 대화실에 25분째 계십니다. 잠시 쉬어 가세요."), CHAT_WARN_MS);
@@ -708,21 +999,24 @@ export class Session {
       const c = line.trim();
       if (c === "/q") {
         this.leaveChat();
-        return this.main();
+        return this.chatList();
       }
-      if (c === "/w") this.print(" 참가자: " + [...chat].map((s) => s.user).join(", "));
+      if (c === "/w") this.print(" 참가자: " + [...(rooms.get(this.room!.no) ?? [])].map((s) => s.user).join(", "));
       else if (c) this.broadcast(`[${this.user}] ${c}`);
       this.chatPrompt();
     });
   }
 
   private broadcast(msg: string, except?: Session) {
-    for (const s of chat) if (s !== except) s.print(msg);
+    for (const s of rooms.get(this.room?.no ?? "") ?? []) if (s !== except) s.print(msg);
   }
 
   private leaveChat() {
-    if (!chat.delete(this)) return;
+    const people = this.room && rooms.get(this.room.no);
+    if (!people?.delete(this)) return;
     clearTimeout(this.chatTimer);
     this.broadcast(` *** ${this.user}님이 나가셨습니다.`);
+    if (!people.size) rooms.delete(this.room!.no);
+    this.room = undefined;
   }
 }

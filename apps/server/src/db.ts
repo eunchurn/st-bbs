@@ -33,6 +33,16 @@ export function openDb(path = process.env.DB_PATH ?? "bbs.db") {
       read_at INTEGER
     );
     CREATE INDEX IF NOT EXISTS memos_recipient ON memos (recipient, id);
+    CREATE TABLE IF NOT EXISTS post_likes (
+      no INTEGER NOT NULL,
+      user TEXT NOT NULL,
+      PRIMARY KEY (no, user)
+    );
   `);
+  // 조회 수는 나중에 붙은 열이라 기존 DB에는 따로 더한다
+  if (!db.query("SELECT 1 FROM pragma_table_info('posts') WHERE name = 'views'").get())
+    db.exec("ALTER TABLE posts ADD COLUMN views INTEGER NOT NULL DEFAULT 0");
+  if (!db.query("SELECT 1 FROM pragma_table_info('users') WHERE name = 'last_seen'").get())
+    db.exec("ALTER TABLE users ADD COLUMN last_seen INTEGER");
   return db;
 }
