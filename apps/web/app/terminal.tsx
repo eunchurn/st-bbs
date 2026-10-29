@@ -6,11 +6,19 @@ import { playDial } from "./modem";
 
 const BBS_URL = process.env.NEXT_PUBLIC_BBS_URL ?? "ws://localhost:8023/ws";
 const PHONE = "01410";
-const COLS = 80;
-const ROWS = 25; // 25번째 줄은 상태 줄, 서버는 위 24줄만 쓴다
+// 칸 수는 창 크기로 정한다(최소 80x25). 마지막 줄은 상태 줄이고, 서버는 그 위만 쓴다.
+const MIN_COLS = 80;
+const MIN_ROWS = 25;
 const MAX_LINE = 500;
 const WON_PER_MIN = 20; // 과금 체험용 연출 값. 실제 당시 요금표가 아니다.
-const FILL = 0.8; // 화면이 창을 채우는 비율. 1이면 꽉 차서 큰 모니터에서 글자가 너무 커진다
+// 글자 크기: 창 높이에 약 42줄이 들어가게. 칸이 늘어 화면은 꽉 차고 글자는 작아진다.
+const fontSize = () => Math.min(28, Math.max(14, Math.round(innerHeight / 42)));
+// VGA 16색. 하이텔 화면의 파랑·초록·보라가 이 색이다.
+const VGA = {
+  background: "#0000a8", foreground: "#c0c0c0", cursor: "#c0c0c0",
+  black: "#000000", blue: "#0000a8", green: "#00a800", cyan: "#00a8a8", red: "#a80000", magenta: "#a800a8", yellow: "#a85400", white: "#a8a8a8",
+  brightBlack: "#545454", brightBlue: "#5454fc", brightGreen: "#54fc54", brightCyan: "#54fcfc", brightRed: "#fc5454", brightMagenta: "#fc54fc", brightYellow: "#fcfc54", brightWhite: "#fcfcfc",
+};
 
 type Msg = { t: "out"; d: string } | { t: "prompt"; d: string; secret?: boolean } | { t: "bye" };
 
@@ -44,14 +52,13 @@ export default function Terminal() {
     let ws: WebSocket | undefined;
     let term: import("@xterm/xterm").Terminal | undefined;
     let clock: ReturnType<typeof setInterval> | undefined;
-    // 80x25 화면을 비율을 지켜 창에 맞추고 가운데 둔다. 바탕색이 같아 여백은 보이지 않는다.
+    let cols = MIN_COLS;
+    let rows = MIN_ROWS;
+    // 칸 단위로 채우고 남는 한 칸 미만은 위쪽에 둔다(상태 줄이 창 맨 아래에 붙게).
+    // 소수 배율로 늘리면 줄 사이에 가는 틈이 보여서 늘리지 않는다.
     const fit = () => {
       const box = el.current;
-      if (!box?.offsetWidth) return;
-      const k = Math.min(innerWidth / box.offsetWidth, innerHeight / box.offsetHeight) * FILL;
-      box.style.left = `${(innerWidth - box.offsetWidth * k) / 2}px`;
-      box.style.top = `${(innerHeight - box.offsetHeight * k) / 2}px`;
-      box.style.transform = `scale(${k})`;
+      if (box?.offsetHeight) box.style.top = `${innerHeight - box.offsetHeight}px`;
     };
     // 접속 협상 녹음은 미리 받아 둔다. 실패하면 합성음으로 대신한다.
     const handshake = fetch("/sounds/handshake.mp3")
@@ -68,23 +75,27 @@ export default function Terminal() {
       if (disposed || !el.current) return;
 
       const t = new Terminal({
-        cols: COLS,
-        rows: ROWS,
+        cols,
+        rows,
         scrollback: 0,
         allowProposedApi: true,
         fontFamily: "DungGeunMo, monospace",
-        fontSize: 16,
+        fontSize: fontSize(),
         cursorBlink: true,
-        theme: { background: "#0000a8", foreground: "#d0d0d0", cursor: "#d0d0d0" },
+        theme: VGA,
       });
       term = t;
       t.loadAddon(new Unicode11Addon());
       t.unicode.activeVersion = "11";
       t.open(el.current);
+      // 80x25로 열어 한 칸 크기를 잰 뒤 창에 들어가는 만큼 칸을 늘린다
+      cols = Math.max(MIN_COLS, Math.floor(innerWidth / (el.current.offsetWidth / MIN_COLS)));
+      rows = Math.max(MIN_ROWS, Math.floor(innerHeight / (el.current.offsetHeight / MIN_ROWS)));
+      t.resize(cols, rows);
       t.focus();
       fit();
       addEventListener("resize", fit);
-      t.write(`\x1b[1;${ROWS - 1}r`); // 스크롤 영역을 위 24줄로 묶어 상태 줄이 밀려 올라가지 않게 한다
+      t.write(`\x1b[1;${rows - 1}r`); // 스크롤 영역을 상태 줄 위로 묶어 상태 줄이 밀려 올라가지 않게 한다
 
       let phase: "idle" | "dialing" | "online" | "offline" = "idle";
       let since = 0;
@@ -94,11 +105,11 @@ export default function Terminal() {
 
       const status = () => {
         const sec = since ? Math.floor((Date.now() - since) / 1000) : 0;
-        const left = since ? ` Go PC90s | 사용 ${hms(sec)} | 요금 ${(Math.ceil(sec / 60) * WON_PER_MIN).toLocaleString()}원` : " Go PC90s | 접속 전";
+        const left = since ? ` HITEL | 사용 ${hms(sec)} | 요금 ${(Math.ceil(sec / 60) * WON_PER_MIN).toLocaleString()}원` : " HITEL | 접속 전";
         const text = `${left} | Alt+Enter 전체 화면`;
         let cellsUsed = 0;
         for (const ch of text) cellsUsed += width(ch);
-        t.write(`\x1b7\x1b[${ROWS};1H\x1b[0;30;46m${text}${" ".repeat(Math.max(0, COLS - cellsUsed))}\x1b[0m\x1b8`);
+        t.write(`\x1b7\x1b[${rows};1H\x1b[0;30;46m${text}${" ".repeat(Math.max(0, cols - cellsUsed))}\x1b[0m\x1b8`);
       };
 
       // 줄 편집은 브라우저에서 하고, 엔터를 치면 그 줄만 서버로 보낸다.
@@ -118,7 +129,7 @@ export default function Terminal() {
       };
 
       const connect = () => {
-        ws = new WebSocket(BBS_URL);
+        ws = new WebSocket(`${BBS_URL}?cols=${cols}&rows=${rows}`);
         ws.onopen = () => {
           phase = "online";
           since = Date.now();
@@ -156,7 +167,7 @@ export default function Terminal() {
         if (!disposed) connect();
       };
 
-      t.write(" Go PC90s  PC통신 재현 프로젝트\r\n\r\n 엔터를 누르면 전화를 겁니다.   (s: 소리 없이 접속)\r\n");
+      t.write(" HITEL 하이텔  PC통신 재현 프로젝트\r\n\r\n 엔터를 누르면 전화를 겁니다.   (s: 소리 없이 접속)\r\n");
       status();
 
       t.onData((d) => {

@@ -12,10 +12,15 @@ body {
   background: #0000a8;
 }
 
-/* terminal.tsx의 fit()이 창 크기에 맞춰 scale을 건다 */
+/* terminal.tsx의 fit()이 상태 줄이 창 맨 아래에 붙도록 top을 정한다 */
 .screen {
   position: fixed;
   top: 0;
   left: 0;
-  transform-origin: 0 0;
+}
+
+/* 스크롤백을 쓰지 않으므로 오른쪽 스크롤바(하얀 선)를 숨긴다 */
+.xterm .xterm-scrollable-element > .scrollbar,
+.xterm .xterm-decoration-overview-ruler {
+  display: none !important;
 }

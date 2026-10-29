@@ -17,6 +17,22 @@ export function openDb(path = process.env.DB_PATH ?? "bbs.db") {
       body TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS posts_board ON posts (board, no);
+    CREATE TABLE IF NOT EXISTS club_members (
+      club TEXT NOT NULL,
+      user TEXT NOT NULL,
+      joined_at INTEGER NOT NULL,
+      PRIMARY KEY (club, user)
+    );
+    CREATE TABLE IF NOT EXISTS memos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender TEXT NOT NULL,
+      recipient TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      read_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS memos_recipient ON memos (recipient, id);
   `);
   return db;
 }
