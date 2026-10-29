@@ -3,7 +3,7 @@ name: server
 on:
   push:
     branches: [master]
-    paths: ["apps/server/**", ".github/workflows/server.yml"]
+    paths: ["apps/server/**", "k8s/**", ".github/workflows/server.yml"]
   workflow_dispatch:
 
 permissions:
@@ -37,3 +37,25 @@ jobs:
             ghcr.io/eunchurn/st-bbs-server:${{ github.sha }}
             ghcr.io/eunchurn/st-bbs-server:latest
           labels: org.opencontainers.image.source=https://github.com/eunchurn/st-bbs
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+      # KUBE_CONFIG: infra/oci-inobs/k8s/st-bbs-deployer 계정의 base64 kubeconfig. st-bbs 네임스페이스만 쓸 수 있다.
+      - name: kubeconfig
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          printf '%s' "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+      - run: sed -i "s/newTag: .*/newTag: ${{ github.sha }}/" k8s/kustomization.yaml
+      - run: kubectl apply -k k8s
+      - run: kubectl rollout status deployment/st-bbs-server --timeout=180s
+      - run: curl -fsS https://bbs.sophonz.ai/healthz

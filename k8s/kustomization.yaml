@@ -2,11 +2,12 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: st-bbs
 resources:
-  - namespace.yaml
   - pvc.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+# Namespace와 배포 계정은 infra/oci-inobs/k8s/st-bbs-deployer에 있다.
+# newTag는 CI(server.yml)가 배포할 때 그 커밋 sha로 바꾼다.
 images:
   - name: ghcr.io/eunchurn/st-bbs-server
     newTag: 0ee2e580a91564af4f6f34d804ca4d5b61f82731

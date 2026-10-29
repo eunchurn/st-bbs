@@ -29,12 +29,7 @@ bun run build
 ## 배포
 
 - 웹: Vercel 프로젝트 `st-bbs`(팀 sophonz, Root Directory `apps/web`). master에 푸시하면 배포된다. `NEXT_PUBLIC_BBS_URL=wss://bbs.sophonz.ai/ws`.
-- 서버 이미지: `apps/server`가 바뀌어 master에 푸시되면 `.github/workflows/server.yml`이 테스트 후 `ghcr.io/eunchurn/st-bbs-server:<sha>`, `:latest`를 amd64·arm64로 올린다.
-- 서버 배포: `k8s/`(ns `st-bbs`, `bbs.sophonz.ai`, kube context `oci@afextwin`). 이미지 태그는 `k8s/kustomization.yaml`의 `newTag`를 커밋 sha로 바꾼다.
-
-```sh
-kubectl --context oci@afextwin diff -k k8s
-kubectl --context oci@afextwin apply -k k8s
-```
+- 서버: `apps/server`나 `k8s/`가 바뀌어 master에 푸시되면 `.github/workflows/server.yml`이 테스트하고, `ghcr.io/eunchurn/st-bbs-server:<sha>`를 amd64·arm64로 올린 뒤 `k8s/`를 그 sha로 클러스터에 적용한다(ns `st-bbs`, `bbs.sophonz.ai`). 다시 배포하려면 Actions에서 server를 수동 실행한다. `k8s/kustomization.yaml`의 `newTag`는 CI가 덮어쓰므로 손으로 `kubectl apply -k k8s`를 하면 예전 이미지로 돌아간다.
+- 배포 계정과 Namespace: `infra/oci-inobs/k8s/st-bbs-deployer`. 그 토큰의 kubeconfig가 저장소 시크릿 `KUBE_CONFIG`다. 토큰을 폐기하려면 Secret `st-bbs-deployer-token`을 지우고 다시 apply한 뒤 시크릿을 새로 넣는다.
 
 SQLite라서 레플리카는 1개(`Recreate`)이고 데이터는 PVC `st-bbs-data`(`openebs-lvm`)의 `/data/bbs.db`에 있다. Vercel 프로덕션 도메인을 바꾸면 `deployment.yaml`의 `ALLOWED_ORIGINS`도 바꾼다.
