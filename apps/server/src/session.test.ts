@@ -2,11 +2,14 @@ import { expect, test } from "bun:test";
 import { openDb } from "./db";
 import { cells, clean, Session, type Out } from "./session";
 
-function client(db = openDb(":memory:")) {
+// 서비스 명을 넣고 공지를 건너뛴 뒤, ID를 묻는 데서 돌려준다
+async function client(db = openDb(":memory:")) {
   const out: Out[] = [];
   let closed = false;
   const s = new Session(db, (m) => out.push(m), () => (closed = true));
   s.start();
+  await s.input("pc90s");
+  await s.input("n");
   const text = () => out.map((m) => ("d" in m ? m.d : "")).join("");
   return { s, out, text, db, closed: () => closed };
 }
@@ -16,7 +19,7 @@ async function type(s: Session, ...lines: string[]) {
 }
 
 test("가입하고 글을 쓰면 목록과 본문에 나온다", async () => {
-  const a = client();
+  const a = await client();
   await type(a.s, "kim01", "y", "pass1", "pass1", "5", "w", "첫 글입니다", "안녕하세요", "\x1b[2J반가워요", "/s");
   expect(a.text()).toContain("가입을 환영합니다");
   expect(a.text()).toContain("첫 글입니다");
@@ -27,9 +30,9 @@ test("가입하고 글을 쓰면 목록과 본문에 나온다", async () => {
 });
 
 test("비밀번호가 세 번 틀리면 끊는다", async () => {
-  const a = client();
+  const a = await client();
   await type(a.s, "lee01", "y", "pass1", "pass1", "x");
-  const b = client(a.db);
+  const b = await client(a.db);
   await type(b.s, "lee01", "bad", "lee01", "bad", "lee01", "bad");
   expect(b.closed()).toBe(true);
   expect(b.out.at(-1)).toEqual({ t: "bye" });
@@ -37,8 +40,8 @@ test("비밀번호가 세 번 틀리면 끊는다", async () => {
 
 test("대화실 메시지는 다른 참가자에게 간다", async () => {
   const db = openDb(":memory:");
-  const a = client(db);
-  const b = client(db);
+  const a = await client(db);
+  const b = await client(db);
   await type(a.s, "park1", "y", "pass1", "pass1", "6");
   await type(b.s, "choi1", "y", "pass1", "pass1", "go chat");
   await type(a.s, "안녕");
@@ -54,7 +57,7 @@ test("한글은 2칸, 제어 문자는 지운다", () => {
 });
 
 test("게시판은 13개씩 쪽을 나누고 화면을 지우고 다시 그린다", async () => {
-  const a = client();
+  const a = await client();
   await type(a.s, "han01", "y", "pass1", "pass1");
   for (let i = 1; i <= 14; i++)
     a.db.query("INSERT INTO posts (board, author, title, body, created_at) VALUES ('free', 'han01', ?, 'x', 0)").run(`글${i}`);
@@ -70,4 +73,20 @@ test("게시판은 13개씩 쪽을 나누고 화면을 지우고 다시 그린�
   await type(a.s, "n");
   expect(a.text()).toContain("마지막 쪽입니다");
   a.s.end();
+});
+
+test("서비스 명이 틀리면 다시 묻고, 맞으면 로고와 공지를 보여 준다", async () => {
+  const out: Out[] = [];
+  const s = new Session(openDb(":memory:"), (m) => out.push(m), () => {});
+  s.start();
+  await s.input("hitel");
+  const text = () => out.map((m) => ("d" in m ? m.d : "")).join("");
+  expect(text()).toContain("서비스 명이 바르지 않습니다");
+  await s.input("PC90s");
+  expect(text()).toContain("<<<알립니다>>>");
+  expect(text()).toContain("PPPP");
+  await s.input("3");
+  expect(text()).toContain("'님' 문화");
+  await s.input("n");
+  expect(out.at(-1)).toEqual({ t: "prompt", d: " 사용자 ID : ", secret: false });
 });

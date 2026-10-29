@@ -32,6 +32,32 @@ const MENU: Item[] = [
   { no: "7", go: "club", name: "동호회·모임" },
 ];
 
+// 케텔 접속 화면처럼 글자 자체로 그린 로고. 윗줄일수록 오른쪽으로 밀어 기울인다.
+const GLYPHS: Record<string, string[]> = {
+  G: [" GGGG", "G    ", "G  GG", "G   G", " GGG "],
+  O: [" OOO ", "O   O", "O   O", "O   O", " OOO "],
+  P: ["PPPP ", "P   P", "PPPP ", "P    ", "P    "],
+  C: [" CCCC", "C    ", "C    ", "C    ", " CCCC"],
+  "9": [" 999 ", "9   9", " 9999", "    9", " 999 "],
+  "0": [" 000 ", "0  00", "0 0 0", "00  0", " 000 "],
+  s: ["    ", "    ", " sss", " ss ", "sss "],
+  " ": ["  ", "  ", "  ", "  ", "  "],
+};
+
+export const LOGO = [0, 1, 2, 3, 4]
+  .map((row) => " ".repeat(6 + 4 - row) + [..."GO PC90s"].map((ch) => GLYPHS[ch][row]).join("  ").trimEnd())
+  .join("\n");
+
+const SERVICE = "pc90s";
+
+// 계획서의 운영 규칙에서 가져온 공지
+const NOTICES: { title: string; body: string[] }[] = [
+  { title: "Go PC90s 한시 운영 안내", body: ["이 서비스는 정해진 기간 동안만 열립니다.", "운영이 끝나면 '접속 끊기' 후 읽기 전용 아카이브로 남습니다."] },
+  { title: "개인정보를 입력하지 마십시오", body: ["실명, 주민등록번호, 연락처는 받지 않습니다.", "ID와 비밀번호만으로 가입합니다."] },
+  { title: "'님' 문화와 1인 1 ID", body: ["호칭은 형·누나가 아니라 '님'입니다.", "한 사람이 한 ID를 쓰는 것이 예의입니다."] },
+  { title: "게시판 이용 안내", body: ["go board 로 게시판에 갑니다.", "글은 200행까지 쓸 수 있고 /s 로 저장합니다."] },
+];
+
 const online = new Set<Session>();
 const chat = new Set<Session>();
 
@@ -91,17 +117,47 @@ export class Session {
   start() {
     this.print(
       [
-        CLS,
-        HR,
-        `  ${HL}Go PC90s${RS}   PC통신 재현 프로젝트`,
-        HR,
         "",
-        "  처음 오신 분은 쓰고 싶은 ID를 입력하면 가입할 수 있습니다.",
-        "  ※ 실명, 주민등록번호, 연락처 같은 개인정보는 입력하지 마세요.",
+        "### Go PC90s에 연결되었습니다.(korea:pc)",
+        "### Welcome to Go PC90s!!!",
+        `### 서비스 명에 ${SERVICE}를 입력하십시오.`,
         "",
       ].join("\n"),
     );
-    this.askId();
+    this.askService();
+  }
+
+  private askService() {
+    this.ask("서비스 명(login):", (line) => {
+      if (line.trim().toLowerCase() !== SERVICE) {
+        this.print(`### 서비스 명이 바르지 않습니다. ${SERVICE}를 입력하십시오.`);
+        return this.askService();
+      }
+      this.print(
+        [
+          "",
+          `\x1b[1;37m${LOGO}${RS}`,
+          "",
+          "                    <<<알립니다>>>",
+          "",
+          ...NOTICES.map((n, i) => ` ${i + 1}.<<${n.title}>>`),
+          "",
+        ].join("\n"),
+      );
+      this.askNotice();
+    });
+  }
+
+  private askNotice() {
+    this.ask("  ** 공지사항을 보시겠습니까(번호/N)? ", (line) => {
+      const n = NOTICES[Number(line.trim()) - 1];
+      if (!n) {
+        this.print("");
+        return this.askId();
+      }
+      this.print(["", ` <<${n.title}>>`, ...n.body.map((l) => "   " + l), ""].join("\n"));
+      this.askNotice();
+    });
   }
 
   // 비밀번호 해시가 비동기라 입력은 한 줄씩 차례로 처리한다.
@@ -134,7 +190,7 @@ export class Session {
   // ---- 로그인 ----
 
   private askId(tries = 0) {
-    this.ask("  이용자 ID : ", (line) => {
+    this.ask(" 사용자 ID : ", (line) => {
       const id = line.trim().toLowerCase();
       if (!id) return this.askId(tries);
       const row = this.db.query("SELECT pw FROM users WHERE id = ?").get(id) as { pw: string } | null;

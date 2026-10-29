@@ -1,0 +1,5 @@
+handshake.mp3
+  Source: "Dial up modem noises.ogg" by William Termini, Wikimedia Commons
+  https://commons.wikimedia.org/wiki/File:Dial_up_modem_noises.ogg
+  License: Public domain
+  Edit: 6.2s-26.6s (answer tone and handshake), mono, fade out, MP3 64kbps.

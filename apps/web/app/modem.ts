@@ -1,4 +1,4 @@
-// 모뎀음은 저작권 문제가 없도록 WebAudio로 직접 합성한다.
+// 발신음과 다이얼(01410)은 WebAudio로 합성하고, 접속 협상 소리는 퍼블릭 도메인 녹음을 쓴다.
 const DTMF: Record<string, [number, number]> = {
   "1": [697, 1209], "2": [697, 1336], "3": [697, 1477],
   "4": [770, 1209], "5": [770, 1336], "6": [770, 1477],
@@ -34,8 +34,9 @@ function hiss(ctx: AudioContext, start: number, dur: number) {
   src.start(start);
 }
 
-// 발신음 → 번호 누르는 소리 → 응답음 → 접속 협상. 걸리는 시간(초)을 돌려준다.
-export function playDial(ctx: AudioContext, number: string) {
+// 발신음 → 번호 누르는 소리 → 응답음·접속 협상. 걸리는 시간(초)을 돌려준다.
+// handshake는 실제 모뎀 녹음(public/sounds/CREDITS.txt). 없으면 합성음으로 대신한다.
+export function playDial(ctx: AudioContext, number: string, handshake?: AudioBuffer) {
   let t = ctx.currentTime + 0.1;
   tone(ctx, [350, 440], t, 1);
   t += 1.2;
@@ -43,7 +44,14 @@ export function playDial(ctx: AudioContext, number: string) {
     if (DTMF[d]) tone(ctx, DTMF[d], t, 0.12);
     t += 0.2;
   }
-  t += 1;
+  t += 0.8;
+  if (handshake) {
+    const src = ctx.createBufferSource();
+    src.buffer = handshake;
+    src.connect(ctx.destination);
+    src.start(t);
+    return t + handshake.duration - ctx.currentTime;
+  }
   tone(ctx, [2100], t, 1.2, 0.06);
   t += 1.3;
   const pairs = [[1200, 2400], [980, 1180], [1650, 1850]];

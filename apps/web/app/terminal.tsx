@@ -10,6 +10,7 @@ const COLS = 80;
 const ROWS = 25; // 25번째 줄은 상태 줄, 서버는 위 24줄만 쓴다
 const MAX_LINE = 500;
 const WON_PER_MIN = 20; // 과금 체험용 연출 값. 실제 당시 요금표가 아니다.
+const FILL = 0.8; // 화면이 창을 채우는 비율. 1이면 꽉 차서 큰 모니터에서 글자가 너무 커진다
 
 type Msg = { t: "out"; d: string } | { t: "prompt"; d: string; secret?: boolean } | { t: "bye" };
 
@@ -43,11 +44,20 @@ export default function Terminal() {
     let ws: WebSocket | undefined;
     let term: import("@xterm/xterm").Terminal | undefined;
     let clock: ReturnType<typeof setInterval> | undefined;
-    // 80x25 칸을 창 크기에 맞게 가로세로 따로 늘린다. 도스 전체 화면처럼 여백이 없다.
+    // 80x25 화면을 비율을 지켜 창에 맞추고 가운데 둔다. 바탕색이 같아 여백은 보이지 않는다.
     const fit = () => {
       const box = el.current;
-      if (box?.offsetWidth) box.style.transform = `scale(${innerWidth / box.offsetWidth}, ${innerHeight / box.offsetHeight})`;
+      if (!box?.offsetWidth) return;
+      const k = Math.min(innerWidth / box.offsetWidth, innerHeight / box.offsetHeight) * FILL;
+      box.style.left = `${(innerWidth - box.offsetWidth * k) / 2}px`;
+      box.style.top = `${(innerHeight - box.offsetHeight * k) / 2}px`;
+      box.style.transform = `scale(${k})`;
     };
+    // 접속 협상 녹음은 미리 받아 둔다. 실패하면 합성음으로 대신한다.
+    const handshake = fetch("/sounds/handshake.mp3")
+      .then((r) => (r.ok ? r.arrayBuffer() : undefined))
+      .catch(() => undefined);
+    let skip = () => {};
 
     (async () => {
       const [{ Terminal }, { Unicode11Addon }] = await Promise.all([
@@ -129,11 +139,19 @@ export default function Terminal() {
 
       const dial = async (sound: boolean) => {
         phase = "dialing";
-        t.write(`\x1b[2J\x1b[H C:\\> ATDT ${PHONE}\r\n 전화 거는 중...`);
+        t.write(`\x1b[2J\x1b[H C:\\> ATDT ${PHONE}\r\n 전화 거는 중... (아무 키나 누르면 건너뜁니다)`);
         status();
+        // AudioContext는 키를 누른 직후(사용자 동작 안)에 만들어야 소리가 난다
         const ctx = sound ? new AudioContext() : undefined;
-        const secs = ctx ? playDial(ctx, PHONE) : 1.5;
-        await new Promise((r) => setTimeout(r, secs * 1000));
+        const raw = ctx && (await handshake);
+        // decodeAudioData는 넘긴 버퍼를 비워 버리므로 다시 걸 때를 위해 복사본을 넘긴다
+        const buf = raw ? await ctx.decodeAudioData(raw.slice(0)).catch(() => undefined) : undefined;
+        const secs = ctx ? playDial(ctx, PHONE, buf) : 1.5;
+        await new Promise<void>((r) => {
+          const timer = setTimeout(r, secs * 1000);
+          skip = () => (clearTimeout(timer), r());
+        });
+        skip = () => {};
         ctx?.close();
         if (!disposed) connect();
       };
@@ -143,6 +161,7 @@ export default function Terminal() {
 
       t.onData((d) => {
         if (d === "\x1b\r") return toggleFullscreen(); // Alt+Enter
+        if (phase === "dialing") return skip();
         if (phase === "idle" || phase === "offline") {
           if (d === "\r") dial(true);
           else if (d.toLowerCase() === "s") dial(false);
