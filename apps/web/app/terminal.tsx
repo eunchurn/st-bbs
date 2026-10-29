@@ -6,13 +6,14 @@ import { playDial } from "./modem";
 
 const BBS_URL = process.env.NEXT_PUBLIC_BBS_URL ?? "ws://localhost:8023/ws";
 const PHONE = "01410";
-// 칸 수는 창 크기로 정한다(최소 80x25). 마지막 줄은 상태 줄이고, 서버는 그 위만 쓴다.
-const MIN_COLS = 80;
-const MIN_ROWS = 25;
+// 하이텔 화면은 80x25다. 마지막 줄은 상태 줄이고, 서버는 그 위만 쓴다.
+const cols = 80;
+const rows = 25;
 const MAX_LINE = 500;
 const WON_PER_MIN = 20; // 과금 체험용 연출 값. 실제 당시 요금표가 아니다.
-// 글자 크기: 창 높이에 약 42줄이 들어가게. 칸이 늘어 화면은 꽉 차고 글자는 작아진다.
-const fontSize = () => Math.min(28, Math.max(14, Math.round(innerHeight / 42)));
+// 글자 크기: 창 높이에 약 42줄이 들어갈 크기. 80x25 화면은 창 가운데에 놓이고 바깥은 검게 남는다.
+// 창이 좁으면 80칸이 들어가도록 더 줄인다(둥근모 반각 폭은 0.5em).
+const fontSize = () => Math.max(8, Math.min(28, Math.round(innerHeight / 42), Math.floor(innerWidth / (cols * 0.5))));
 // VGA 16색. 하이텔 화면의 파랑·초록·보라가 이 색이다.
 const VGA = {
   background: "#0000a8", foreground: "#c0c0c0", cursor: "#c0c0c0",
@@ -52,13 +53,16 @@ export default function Terminal() {
     let ws: WebSocket | undefined;
     let term: import("@xterm/xterm").Terminal | undefined;
     let clock: ReturnType<typeof setInterval> | undefined;
-    let cols = MIN_COLS;
-    let rows = MIN_ROWS;
-    // 칸 단위로 채우고 남는 한 칸 미만은 위쪽에 둔다(상태 줄이 창 맨 아래에 붙게).
-    // 소수 배율로 늘리면 줄 사이에 가는 틈이 보여서 늘리지 않는다.
-    const fit = () => {
+    // 화면을 창 가운데에 둔다. 소수 배율로 늘리면 줄 사이에 가는 틈이 보여서 글자 크기로만 맞춘다.
+    const center = () => {
       const box = el.current;
-      if (box?.offsetHeight) box.style.top = `${innerHeight - box.offsetHeight}px`;
+      if (!box?.offsetWidth) return;
+      box.style.left = `${Math.floor((innerWidth - box.offsetWidth) / 2)}px`;
+      box.style.top = `${Math.floor((innerHeight - box.offsetHeight) / 2)}px`;
+    };
+    const fit = () => {
+      if (term) term.options.fontSize = fontSize();
+      requestAnimationFrame(center); // 글자 크기를 바꾸면 xterm이 다음 프레임에 크기를 다시 잰다
     };
     // 접속 협상 녹음은 미리 받아 둔다. 실패하면 합성음으로 대신한다.
     const handshake = fetch("/sounds/handshake.mp3")
@@ -88,12 +92,8 @@ export default function Terminal() {
       t.loadAddon(new Unicode11Addon());
       t.unicode.activeVersion = "11";
       t.open(el.current);
-      // 80x25로 열어 한 칸 크기를 잰 뒤 창에 들어가는 만큼 칸을 늘린다
-      cols = Math.max(MIN_COLS, Math.floor(innerWidth / (el.current.offsetWidth / MIN_COLS)));
-      rows = Math.max(MIN_ROWS, Math.floor(innerHeight / (el.current.offsetHeight / MIN_ROWS)));
-      t.resize(cols, rows);
       t.focus();
-      fit();
+      center();
       addEventListener("resize", fit);
       t.write(`\x1b[1;${rows - 1}r`); // 스크롤 영역을 상태 줄 위로 묶어 상태 줄이 밀려 올라가지 않게 한다
 

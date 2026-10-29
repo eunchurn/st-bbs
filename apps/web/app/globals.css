@@ -9,10 +9,10 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #0000a8;
+  background: #000; /* 80x25 하이텔 화면 바깥은 꺼진 모니터처럼 검게 */
 }
 
-/* terminal.tsx의 fit()이 상태 줄이 창 맨 아래에 붙도록 top을 정한다 */
+/* terminal.tsx의 center()가 창 가운데에 오도록 left/top을 정한다 */
 .screen {
   position: fixed;
   top: 0;
