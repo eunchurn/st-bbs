@@ -178,3 +178,15 @@ test("자료실 번호마다 게시판이 따로 있다", async () => {
   expect(a.db.query("SELECT board FROM posts").get()).toEqual({ board: "data:16" });
   a.s.end();
 });
+
+test("환타지동호회는 성 그림 첫 화면에서 번호로 게시판과 대화방에 간다", async () => {
+  const a = await client();
+  await type(a.s, "hitel", "elf01", "pass1", "pass1", "go fntsy");
+  expect(a.text()).toContain("55.RPG동호회");
+  await type(a.s, "98", "24", "w", "용의 노래 1회", "옛날 옛적에", "/s", "p", "4");
+  expect(a.db.query("SELECT board FROM posts").get()).toEqual({ board: "club:fntsy:24" });
+  expect(a.text()).toContain("환타지동호회 환상 주점");
+  await type(a.s, "/q");
+  expect(a.text().slice(a.text().lastIndexOf("\x1b[2J"))).toContain("Welcome to Fantasy World");
+  a.s.end();
+});

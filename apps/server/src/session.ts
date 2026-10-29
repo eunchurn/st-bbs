@@ -11,7 +11,9 @@ export type Size = { cols: number; rows: number };
 type Post = { no: number; author: string; title: string; body: string; created_at: number; views: number; likes: number };
 type Memo = { id: number; sender: string; body: string; created_at: number; read_at: number | null };
 type Item = { no: string; go: string; name: string };
-type Club = { go: string; name: string; desc: string[] };
+type ClubBoard = { no: string; name: string; key?: string };
+// castle: 환타지동호회처럼 첫 화면이 성 그림이다. chat: 동호회 안 대화방 번호.
+type Club = { go: string; name: string; desc: string[]; boards?: ClubBoard[]; castle?: boolean; chat?: string };
 type Small = { go: string; title: string; clubs: Club[] };
 type Section = { title: string; items: { no: string; name: string }[] };
 type Board = { key: string; code: string; title: string; back: () => void; canWrite: () => boolean };
@@ -168,10 +170,39 @@ const CHATS: Section[] = [
 ];
 const ROOMS = CHATS.slice(0, 5).flatMap((c) => c.items);
 
-const CLUB_BOARDS = [
+const CLUB_BOARDS: ClubBoard[] = [
   { no: "1", key: "talk", name: "이야기방" },
   { no: "2", key: "qna", name: "질문과답" },
 ];
+
+// 하이텔 환타지동호회(FNTSY) 첫 화면의 번호들. 4는 대화방, 98은 가입.
+const FNTSY_JOIN = "98";
+const FNTSY_TOWERS: { turret: string; items: string[] }[] = [
+  { turret: "44.과학소설", items: ["26.작가와 독자와의", "   대화 (문학잡담)", "25.왕국평론회(비평/감상)", "24.음유시인의 노래터", "   (장편)", "23.단편란", "27.중편란"] },
+  { turret: "88.인터넷", items: ["98.회원메뉴", "", "2.공지사항", "3.로완에게", "6.여론의 광장", "  (건의/의견)", "9.투표/설문"] },
+  { turret: "55.RPG동호회", items: ["16.환상 연구소(토론관)", "15.문서보관소", "14.현자의 학원", "   (질문/답변)", "13.FAQ 게시판", "", ""] },
+];
+const FNTSY_WALL = [
+  "18.서적정보  19.넓은 세상 소식(인터넷)  20.강의/강좌  21.영상/게임",
+  "",
+  "4.환상 주점 (대화방)           11.모험가들과의 만남 (잡담란)",
+  "5.왕립 도서관 (자료실)   7.소모임 게시판   8.소모임 게시판 2",
+];
+const FNTSY: Club = {
+  go: "fntsy",
+  name: "환타지동호회",
+  desc: ["판타지 소설을 쓰고 읽는 사람들의 동호회입니다."],
+  castle: true,
+  chat: "4",
+  boards: [
+    ["44", "과학소설"], ["88", "인터넷"], ["55", "RPG동호회"], ["26", "작가와 독자와의 대화"], ["25", "왕국평론회"],
+    ["24", "음유시인의 노래터"], ["23", "단편란"], ["27", "중편란"], ["2", "공지사항"], ["3", "로완에게"], ["6", "여론의 광장"],
+    ["9", "투표/설문"], ["16", "환상 연구소"], ["15", "문서보관소"], ["14", "현자의 학원"], ["13", "FAQ 게시판"], ["18", "서적정보"],
+    ["19", "넓은 세상 소식"], ["20", "강의/강좌"], ["21", "영상/게임"], ["11", "모험가들과의 만남"], ["5", "왕립 도서관"],
+    ["7", "소모임 게시판"], ["8", "소모임 게시판 2"],
+  ].map(([no, name]) => ({ no, name })),
+};
+CLUBS.push(FNTSY);
 
 // 케텔 접속 화면처럼 글자 자체로 그린 로고. 윗줄일수록 오른쪽으로 밀어 기울인다.
 const GLYPHS: Record<string, string[]> = {
@@ -283,6 +314,7 @@ export class Session {
   private chatTimer?: ReturnType<typeof setTimeout>;
   private room?: { no: string; name: string };
   private lastSeen: number | null = null;
+  private chatBack = () => this.chatList();
   private up: () => void = () => this.clubList(); // 동호회 첫 화면에서 P로 돌아갈 목록
   private cols: number;
   private margin: string; // 80칸 내용을 가운데 두는 왼쪽 여백
@@ -740,39 +772,23 @@ export class Session {
 
   private clubHome(club: Club, notice = "") {
     const member = this.isMember(club);
-    const [info, next] = this.box(6, 4, 46, [
-      "",
-      ...club.desc.flatMap((l) => wrap(l, 42)).map((l) => " " + l),
-      "",
-      ` 회원 ${this.members(club)}명`,
-      member ? " 가입한 동호회입니다." : " 아직 가입하지 않았습니다.",
-      "",
-    ]);
-    this.draw(
-      [
-        this.header(`GO ${club.go.toUpperCase()}`, club.name),
-        this.head(4, 4, 46, "동호회 소개", PURPLE),
-        info,
-        this.head(4, 52, 24, "게시판", GREEN),
-        this.lines(7, 54, CLUB_BOARDS.map((b) => `${b.no}. ${b.name}`)),
-        this.at(next + 1, 1) + notice,
-        this.at(next + 3, 1) + ` 들어가기(번호) ${member ? "" : "가입(J) "}이전(P) 처음(T) 종료(X)`,
-      ].join(""),
-      next + 4,
-    );
+    const boards = club.boards ?? CLUB_BOARDS;
+    const [screen, promptRow] = club.castle ? this.castle(club, notice, member) : this.clubIntro(club, notice, member);
+    this.draw(screen, promptRow);
     this.ask(" >> ", (line) => {
       const c = line.trim().toLowerCase();
       if (!c) return this.clubHome(club);
       if (c === "p") return this.up();
-      if (c === "j") {
-        if (member) return this.clubHome(club, " 이미 가입한 동호회입니다.");
+      if (c === "j" || (club.castle && c === FNTSY_JOIN)) {
+        if (member) return this.clubHome(club, ` 이미 가입한 회원입니다. 회원 ${this.members(club)}명.`);
         this.db.query("INSERT OR IGNORE INTO club_members (club, user, joined_at) VALUES (?, ?, ?)").run(club.go, this.user, Date.now());
         return this.clubHome(club, ` ${HL}${club.name}에 가입했습니다. 반갑습니다.${RS}`);
       }
-      const sub = CLUB_BOARDS.find((b) => b.no === c);
+      if (club.chat && c === club.chat) return this.enterChat({ no: `${club.go}:${c}`, name: `${club.name} 환상 주점` }, () => this.clubHome(club));
+      const sub = boards.find((b) => b.no === c);
       if (sub) {
         this.board = {
-          key: `club:${club.go}:${sub.key}`,
+          key: `club:${club.go}:${sub.key ?? sub.no}`,
           code: `GO ${club.go.toUpperCase()}`,
           title: `${club.name} [${sub.name}]`,
           back: () => this.clubHome(club),
@@ -783,6 +799,56 @@ export class Session {
       if (this.nav(c)) return;
       this.clubHome(club, " 잘못된 명령입니다.");
     });
+  }
+
+  // 성 그림: 탑 셋(위에 작은 망루), 아래에 성벽. 번호가 곧 게시판이다.
+  private castle(club: Club, notice: string, member: boolean): [string, number] {
+    const W = "\x1b[0;1;37m";
+    const merlons = (w: number) => "▄▄  ".repeat(Math.ceil(w / 4)).slice(0, w);
+    const tower = (col: number, t: (typeof FNTSY_TOWERS)[number]) =>
+      this.at(3, col + 6) + W + "┌" + "─".repeat(12) + "┐" +
+      this.at(4, col + 6) + "│" + HL + center(t.turret, 12) + W + "│" +
+      this.at(5, col) + merlons(26) +
+      this.at(6, col) + "┌" + "─".repeat(24) + "┐" +
+      t.items.map((l, i) => this.at(7 + i, col) + "│" + RS + pad(" " + l, 24) + W + "│").join("");
+    const wall =
+      this.at(14, 1) + W + merlons(78) +
+      this.at(15, 1) + "┌" + "─".repeat(76) + "┐" +
+      FNTSY_WALL.map((l, i) => this.at(16 + i, 1) + "│" + RS + pad("  " + l, 76) + W + "│").join("") +
+      this.at(20, 1) + "└" + "─".repeat(76) + "┘" + RS;
+    return [
+      [
+        this.header(club.go.toUpperCase(), club.name),
+        ...FNTSY_TOWERS.map((t, i) => tower(1 + i * 26, t)),
+        wall,
+        this.at(21, 1) + (notice || `\x1b[1;36m Welcome to Fantasy World...${RS}   회원 ${this.members(club)}명${member ? " (가입)" : ""}`),
+        this.at(23, 1) + ` 들어가기(번호) ${member ? "" : "가입(98) "}이전(P) 처음(T) 종료(X)`,
+      ].join(""),
+      24,
+    ];
+  }
+
+  private clubIntro(club: Club, notice: string, member: boolean): [string, number] {
+    const [info, next] = this.box(6, 4, 46, [
+      "",
+      ...club.desc.flatMap((l) => wrap(l, 42)).map((l) => " " + l),
+      "",
+      ` 회원 ${this.members(club)}명`,
+      member ? " 가입한 동호회입니다." : " 아직 가입하지 않았습니다.",
+      "",
+    ]);
+    return [
+      [
+        this.header(`GO ${club.go.toUpperCase()}`, club.name),
+        this.head(4, 4, 46, "동호회 소개", PURPLE),
+        info,
+        this.head(4, 52, 24, "게시판", GREEN),
+        this.lines(7, 54, (club.boards ?? CLUB_BOARDS).map((b) => `${b.no}. ${b.name}`)),
+        this.at(next + 1, 1) + notice,
+        this.at(next + 3, 1) + ` 들어가기(번호) ${member ? "" : "가입(J) "}이전(P) 처음(T) 종료(X)`,
+      ].join(""),
+      next + 4,
+    ];
   }
 
   // ---- 소모임 ----
@@ -982,12 +1048,13 @@ export class Session {
     });
   }
 
-  private enterChat(room: { no: string; name: string }) {
+  private enterChat(room: { no: string; name: string }, back = () => this.chatList()) {
+    this.chatBack = back;
     const people = rooms.get(room.no) ?? new Set<Session>();
     rooms.set(room.no, people);
     people.add(this);
     this.room = room;
-    this.draw(this.header("CHATTING", `${room.no}. ${room.name}`, `지금 ${people.size}명`), 4);
+    this.draw(this.header("CHATTING", room.name, `지금 ${people.size}명`), 4);
     this.print(" 들어왔습니다. '님' 문화를 지켜 주세요.   참가자(/W) 나가기(/Q)");
     this.broadcast(` *** ${this.user}님이 들어오셨습니다.`, this);
     this.chatTimer = setTimeout(() => this.print(" *** 대화실에 25분째 계십니다. 잠시 쉬어 가세요."), CHAT_WARN_MS);
@@ -999,7 +1066,7 @@ export class Session {
       const c = line.trim();
       if (c === "/q") {
         this.leaveChat();
-        return this.chatList();
+        return this.chatBack();
       }
       if (c === "/w") this.print(" 참가자: " + [...(rooms.get(this.room!.no) ?? [])].map((s) => s.user).join(", "));
       else if (c) this.broadcast(`[${this.user}] ${c}`);
