@@ -11,6 +11,9 @@ import { Dialing, Scene, Splash } from "./scene";
 
 const BBS_URL = process.env.NEXT_PUBLIC_BBS_URL ?? "ws://localhost:8023/ws";
 const PHONE = "01410";
+const INIT = "AT&C1\\N3L3S11=60%A127%c1\\c1"; // 이야기 5.3의 모뎀 초기화 명령
+const TYPE_MS = 54; // 이야기가 명령을 한 글자씩 찍는 빠르기(5.3 화면을 재어 봄)
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // 하이텔 화면은 80x24다. 25번째 줄(상태 줄)은 xterm 밖, 이야기 5.0 아래 막대가 맡는다.
 const cols = 80;
 const rows = 24;
@@ -58,6 +61,8 @@ export default function Terminal() {
   const live = useRef<Live>({ phase: "idle", since: 0, hangul: false, rd: 0, until: 0 });
   // 시계는 서버 렌더와 어긋나지 않게 브라우저에서만 채운다
   const [now, setNow] = useState(0);
+  const [boot, setBoot] = useState(true); // 알림 상자 앞: 모니터 글자가 뜨고 초기화 명령이 찍힌다
+  const [typed, setTyped] = useState("");
   const [splash, setSplash] = useState(true);
   const [dir, setDir] = useState(true); // 알림 상자 다음에 전화번호부
   const [win, setWin] = useState<null | "help" | "news">(null); // F1 도움말, F2 새소식 창
@@ -116,11 +121,23 @@ export default function Terminal() {
     if (!splash && !dir && !win && mode !== "min") termRef.current?.focus(); // 창이 보인 뒤에 포커스를 준다
   }, [splash, dir, win, mode]);
   useEffect(() => {
-    if (!splash) return;
+    if (!boot) return;
+    const ok = `${INIT}\nOK`;
+    const start = 1800; // 모니터 글자가 다 뜬 뒤
+    const ts = [...INIT].map((_, i) => setTimeout(() => setTyped(INIT.slice(0, i + 1)), start + i * TYPE_MS));
+    const end = start + INIT.length * TYPE_MS;
+    ts.push(setTimeout(() => setTyped(ok), end + 250), setTimeout(() => setBoot(false), end + 500));
+    const skip = () => (setTyped(ok), setBoot(false)); // 누르면 바로 알림 상자로
+    addEventListener("keydown", skip);
+    addEventListener("pointerdown", skip);
+    return () => (ts.forEach(clearTimeout), removeEventListener("keydown", skip), removeEventListener("pointerdown", skip));
+  }, [boot]);
+  useEffect(() => {
+    if (boot || !splash) return;
     const timer = setTimeout(close, 5000);
     addEventListener("keydown", close);
     return () => (clearTimeout(timer), removeEventListener("keydown", close));
-  }, [splash]);
+  }, [boot, splash]);
   useEffect(() => {
     setNow(Date.now());
     const i = setInterval(() => setNow(Date.now()), 250);
@@ -223,9 +240,16 @@ export default function Terminal() {
 
       const dial = async (sound: boolean) => {
         L.phase = "dialing";
-        t.write(`\x1b[2J\x1b[H AT&C1\\N3L3S11=60%A127%c1\\c1\r\n OK\r\n ATDT${PHONE}\r\n 전화 거는 중... (아무 키나 누르면 건너뜁니다)`);
+        L.until = 0;
+        t.write(`\x1b[2J\x1b[H ${INIT}\r\n OK\r\n `);
         // AudioContext는 키를 누른 직후(사용자 동작 안)에 만들어야 소리가 난다
         const ctx = sound ? new AudioContext() : undefined;
+        for (const ch of `ATDT${PHONE}`) {
+          t.write(ch);
+          await sleep(TYPE_MS);
+          if (L.phase !== "dialing") return void ctx?.close(); // 찍는 중에 ESC
+        }
+        t.write("\r\n 전화 거는 중... (아무 키나 누르면 건너뜁니다)");
         const raw = ctx && (await handshake);
         // decodeAudioData는 넘긴 버퍼를 비워 버리므로 다시 걸 때를 위해 복사본을 넘긴다
         const buf = raw ? await ctx.decodeAudioData(raw.slice(0)).catch(() => undefined) : undefined;
@@ -288,9 +312,9 @@ export default function Terminal() {
   const online = L.phase === "online";
   return (
     <>
-      <Scene />
+      <Scene typed={typed} done={!boot} />
       <div className="stage" ref={stageRef}>
-        {splash && <Splash onClose={close} />}
+        {!boot && splash && <Splash onClose={close} />}
         {!splash && dir && <Directory onDial={dial} onHelp={() => setWin("help")} />}
         {win === "help" && <Help onClose={() => setWin(null)} />}
         {win === "news" && <News onClose={() => setWin(null)} />}

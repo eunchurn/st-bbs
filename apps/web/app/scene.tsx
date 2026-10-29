@@ -1,8 +1,16 @@
 // 이야기 5.3 첫 화면의 사무실 그림과 알림 상자. 둘 다 에뮬레이터로 띄운 진짜 이야기 화면(640x480)에서 떼어 왔다.
 // 만드는 법은 st-iyagi 저장소 tools/scene.ts. 터미널 창 뒤에 깔린다.
 
-export function Scene() {
-  return <div className="scene" aria-hidden />;
+// 처음 켤 때처럼 두 모니터에 글자가 색을 바꿔 가며 뜨고(monitors.png, 5.3 화면 16장), 아래에 모뎀 초기화 명령이 찍힌다.
+export function Scene({ typed, done }: { typed: string; done: boolean }) {
+  return (
+    <div className="scene" aria-hidden>
+      <div className={done ? "office done" : "office"}>
+        <div className="monitors" />
+        <pre className="boot">{typed}</pre>
+      </div>
+    </div>
+  );
 }
 
 // 이야기 첫 화면의 알림 상자. 얼굴 둘레의 그림(전화·원판·물음표·편지·막대)이 돈다: 5.3 화면의 다섯 장면을 이어 붙인 그림을 넘긴다.

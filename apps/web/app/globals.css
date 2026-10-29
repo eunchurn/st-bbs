@@ -28,8 +28,53 @@ body {
 .scene {
   position: fixed;
   inset: 0;
-  background: #0000a8 url("/iyagi/office.png") center top / cover no-repeat;
+  overflow: hidden;
+  background: #0000a8;
+}
+/* 640x464 그림을 화면에 꽉 차게(cover, 위 가운데). --u는 그림의 한 점 */
+.office {
+  --u: calc(max(100vw, 100vh * 640 / 464) / 640);
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: calc(var(--u) * 640);
+  height: calc(var(--u) * 464);
+  transform: translateX(-50%);
+  background: url("/iyagi/office.png") 0 0 / 100% 100%;
   image-rendering: pixelated;
+}
+.monitors {
+  position: absolute;
+  left: calc(var(--u) * 72);
+  top: calc(var(--u) * 193);
+  width: calc(var(--u) * 278);
+  height: calc(var(--u) * 59);
+  background: url("/iyagi/monitors.png") 0 0 / 100% 1600%;
+  animation: monitors 1.6s steps(15) 0.1s both;
+}
+@keyframes monitors {
+  to {
+    background-position-y: 100%;
+  }
+}
+.office.done .monitors {
+  animation: none;
+  background-position-y: 100%;
+}
+.boot {
+  position: absolute;
+  left: 0;
+  top: calc(var(--u) * 352);
+  margin: 0;
+  color: #fff;
+  font: calc(var(--u) * 16) / calc(var(--u) * 16) Iyagi, DungGeunMo, monospace;
+  white-space: pre;
+}
+@media (prefers-reduced-motion: reduce) {
+  .monitors {
+    animation: none;
+    background-position-y: 100%;
+  }
 }
 
 /* 터미널 창: 가운데, 아래 상태 막대 높이만큼 비운다 */
