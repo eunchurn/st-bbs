@@ -21,8 +21,8 @@ test("가입하고 글을 쓰면 목록과 본문에 나온다", async () => {
   expect(a.text()).toContain("가입을 환영합니다");
   expect(a.text()).toContain("첫 글입니다");
   await type(a.s, "1");
-  expect(a.text()).toContain("[2J반가워요"); // ESC는 지워지고 나머지만 남는다
-  expect(a.text()).not.toContain("\x1b[2J");
+  const body = (a.db.query("SELECT body FROM posts").get() as { body: string }).body;
+  expect(body).toBe("안녕하세요\n[2J반가워요"); // ESC는 지워지고 나머지만 남는다
   a.s.end();
 });
 
@@ -51,4 +51,23 @@ test("대화실 메시지는 다른 참가자에게 간다", async () => {
 test("한글은 2칸, 제어 문자는 지운다", () => {
   expect(cells("가a")).toBe(3);
   expect(clean("a\x1b[31mb\u009bc")).toBe("a[31mbc");
+});
+
+test("게시판은 13개씩 쪽을 나누고 화면을 지우고 다시 그린다", async () => {
+  const a = client();
+  await type(a.s, "han01", "y", "pass1", "pass1");
+  for (let i = 1; i <= 14; i++)
+    a.db.query("INSERT INTO posts (board, author, title, body, created_at) VALUES ('free', 'han01', ?, 'x', 0)").run(`글${i}`);
+  await type(a.s, "5");
+  const first = a.text();
+  expect(first.lastIndexOf("\x1b[2J")).toBeGreaterThan(-1);
+  expect(first).toContain("1/2쪽");
+  expect(first.slice(first.lastIndexOf("\x1b[2J"))).not.toContain(" 글1 ");
+  await type(a.s, "n");
+  const second = a.text().slice(a.text().lastIndexOf("\x1b[2J"));
+  expect(second).toContain("2/2쪽");
+  expect(second).toContain("글1 ");
+  await type(a.s, "n");
+  expect(a.text()).toContain("마지막 쪽입니다");
+  a.s.end();
 });

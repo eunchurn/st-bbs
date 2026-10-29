@@ -60,4 +60,5 @@ jobs:
           sed -i "s/newTag: .*/newTag: ${{ github.sha }}/" k8s/kustomization.yaml
       - run: kubectl apply -k k8s
       - run: kubectl rollout status deployment/st-bbs-server --timeout=180s
-      - run: curl -fsS https://bbs.sophonz.ai/healthz
+      # 롤아웃 직후에는 ingress가 새 파드를 아직 몰라 503이 잠깐 난다
+      - run: curl -fsS --retry 10 --retry-all-errors --retry-delay 3 https://bbs.sophonz.ai/healthz

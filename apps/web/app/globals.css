@@ -8,12 +8,14 @@ html,
 body {
   margin: 0;
   height: 100%;
+  overflow: hidden;
   background: #0000a8;
 }
 
-main {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100dvh;
+/* terminal.tsx의 fit()이 창 크기에 맞춰 scale을 건다 */
+.screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
 }

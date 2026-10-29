@@ -14,6 +14,10 @@ const MAX_LINE = 500;
 const MAX_BODY_LINES = 200; // 피씨월드 1991.9의 게시글 길이 제한
 const CHAT_WARN_MS = 25 * 60_000;
 const ID_RE = /^[a-z][a-z0-9]{2,7}$/;
+// 화면은 80x25이고 25번째 줄은 브라우저가 그리는 상태 줄이다. 서버는 위 24줄만 쓴다.
+const LIST_PAGE = 13;
+const BODY_PAGE = 16;
+const CLS = "\x1b[2J\x1b[H";
 const HL = "\x1b[1;33m";
 const RS = "\x1b[0m";
 const HR = " " + "-".repeat(70);
@@ -73,6 +77,7 @@ function hms(sec: number) {
 export class Session {
   user = "";
   private since = Date.now();
+  private page = 0;
   private handler: (line: string) => unknown = () => {};
   private queue: Promise<unknown> = Promise.resolve();
   private chatTimer?: ReturnType<typeof setTimeout>;
@@ -84,7 +89,18 @@ export class Session {
   ) {}
 
   start() {
-    this.print("\n Go PC90s 에 접속하셨습니다.\n 처음 오신 분은 쓰고 싶은 ID를 입력하면 가입할 수 있습니다.\n");
+    this.print(
+      [
+        CLS,
+        HR,
+        `  ${HL}Go PC90s${RS}   PC통신 재현 프로젝트`,
+        HR,
+        "",
+        "  처음 오신 분은 쓰고 싶은 ID를 입력하면 가입할 수 있습니다.",
+        "  ※ 실명, 주민등록번호, 연락처 같은 개인정보는 입력하지 마세요.",
+        "",
+      ].join("\n"),
+    );
     this.askId();
   }
 
@@ -95,8 +111,7 @@ export class Session {
       .then(() => this.handler(line))
       .catch((err) => {
         console.error(err);
-        this.print(" 오류가 발생했습니다.");
-        this.user ? this.main() : this.askId();
+        this.user ? this.main(" 오류가 발생했습니다.") : this.askId();
       });
     return this.queue;
   }
@@ -119,16 +134,16 @@ export class Session {
   // ---- 로그인 ----
 
   private askId(tries = 0) {
-    this.ask(" 이용자 ID : ", (line) => {
+    this.ask("  이용자 ID : ", (line) => {
       const id = line.trim().toLowerCase();
       if (!id) return this.askId(tries);
       const row = this.db.query("SELECT pw FROM users WHERE id = ?").get(id) as { pw: string } | null;
       if (row) return this.askPw(id, row.pw, tries);
       if (!ID_RE.test(id)) {
-        this.print(" ID는 영문으로 시작하는 3~8자의 영문·숫자입니다.");
+        this.print("  ID는 영문으로 시작하는 3~8자의 영문·숫자입니다.");
         return this.askId(tries);
       }
-      this.ask(` '${id}'는 처음 보는 ID입니다. 새로 가입할까요? (Y/N) `, (yn) =>
+      this.ask(`  '${id}'는 처음 보는 ID입니다. 새로 가입할까요? (Y/N) `, (yn) =>
         yn.trim().toLowerCase() === "y" ? this.signup(id) : this.askId(tries),
       );
     });
@@ -136,14 +151,14 @@ export class Session {
 
   private askPw(id: string, hash: string, tries: number) {
     this.ask(
-      " 비밀번호 : ",
+      "  비밀번호 : ",
       async (pw) => {
         if (await Bun.password.verify(pw, hash)) return this.welcome(id);
         if (tries >= 2) {
-          this.print(" 비밀번호가 세 번 틀렸습니다.");
+          this.print("  비밀번호가 세 번 틀렸습니다.");
           return this.bye();
         }
-        this.print(" 비밀번호가 틀렸습니다.");
+        this.print("  비밀번호가 틀렸습니다.");
         this.askId(tries + 1);
       },
       true,
@@ -151,19 +166,18 @@ export class Session {
   }
 
   private signup(id: string) {
-    this.print(" ※ 실명, 주민등록번호, 연락처 같은 개인정보는 입력하지 마세요.");
     this.ask(
-      " 사용할 비밀번호(4자 이상) : ",
+      "  사용할 비밀번호(4자 이상) : ",
       (pw) => {
         if (pw.length < 4) {
-          this.print(" 4자 이상 입력하세요.");
+          this.print("  4자 이상 입력하세요.");
           return this.signup(id);
         }
         this.ask(
-          " 한 번 더 입력하세요 : ",
+          "  한 번 더 입력하세요 : ",
           async (pw2) => {
             if (pw2 !== pw) {
-              this.print(" 두 비밀번호가 다릅니다.");
+              this.print("  두 비밀번호가 다릅니다.");
               return this.signup(id);
             }
             const hash = await Bun.password.hash(pw);
@@ -172,11 +186,10 @@ export class Session {
               .query("INSERT OR IGNORE INTO users (id, pw, created_at) VALUES (?, ?, ?)")
               .run(id, hash, Date.now());
             if (r.changes === 0) {
-              this.print(" 방금 다른 분이 이 ID로 가입했습니다.");
+              this.print("  방금 다른 분이 이 ID로 가입했습니다.");
               return this.askId();
             }
-            this.print(` ${id}님, 가입을 환영합니다.`);
-            this.welcome(id);
+            this.welcome(id, `${id}님, 가입을 환영합니다.`);
           },
           true,
         );
@@ -185,17 +198,16 @@ export class Session {
     );
   }
 
-  private welcome(id: string) {
+  private welcome(id: string, greet = `${id}님 반갑습니다.`) {
     this.user = id;
     this.since = Date.now();
     online.add(this);
-    this.print(`\n ${HL}${id}${RS}님 반갑습니다. 지금 ${online.size}명이 접속해 있습니다.`);
-    this.main();
+    this.main(` ${HL}${greet}${RS} 지금 ${online.size}명이 접속해 있습니다.`);
   }
 
   private bye() {
     const sec = Math.floor((Date.now() - this.since) / 1000);
-    this.print(`\n 이용해 주셔서 감사합니다. 사용 시간 ${hms(sec)}`);
+    this.print(`\n  이용해 주셔서 감사합니다. 사용 시간 ${hms(sec)}`);
     this.send({ t: "bye" });
     this.end();
     this.hangup();
@@ -215,13 +227,12 @@ export class Session {
   }
 
   private open(item: Item) {
-    if (item.go === "board") return this.boardList();
+    if (item.go === "board") return this.boardList(0);
     if (item.go === "chat") return this.enterChat();
-    this.print(` [${item.name}] 준비 중인 메뉴입니다.`);
-    this.mainPrompt();
+    this.main(` [${item.name}] 준비 중인 메뉴입니다.`);
   }
 
-  private main() {
+  private main(notice = "") {
     const rows = [0, 1, 2, 3].map((i) => {
       const l = MENU[i];
       const r = MENU[i + 4];
@@ -229,94 +240,95 @@ export class Session {
     });
     this.print(
       [
-        "",
+        CLS,
         HR,
         `  ${HL}Go PC90s${RS}  PC통신 재현 프로젝트${" ".repeat(32)}[초기화면]`,
         HR,
         ...rows,
         HR,
         "  번호 또는 go 이름(예: go board)   t 처음   x 종료",
+        "",
+        notice,
       ].join("\n"),
     );
-    this.mainPrompt();
-  }
-
-  private mainPrompt() {
     this.ask(" 선택 > ", (line) => {
       const c = line.trim().toLowerCase();
-      if (!c) return this.mainPrompt();
-      if (c === "p") return this.main();
+      if (!c || c === "p") return this.main();
       const item = MENU.find((m) => m.no === c || m.go === c);
       if (item) return this.open(item);
       if (this.nav(c)) return;
-      this.print(" 없는 메뉴입니다.");
-      this.mainPrompt();
+      this.main(" 없는 메뉴입니다.");
     });
   }
 
   // ---- 게시판 ----
 
-  private boardList() {
+  private boardList(page = this.page, notice = "") {
+    const total = (this.db.query("SELECT count(*) AS n FROM posts WHERE board = ?").get(BOARD) as { n: number }).n;
+    const pages = Math.max(1, Math.ceil(total / LIST_PAGE));
+    this.page = Math.min(Math.max(page, 0), pages - 1);
     const posts = this.db
-      .query("SELECT no, author, title, created_at FROM posts WHERE board = ? ORDER BY no DESC LIMIT 15")
-      .all(BOARD) as Post[];
+      .query("SELECT no, author, title, created_at FROM posts WHERE board = ? ORDER BY no DESC LIMIT ? OFFSET ?")
+      .all(BOARD, LIST_PAGE, this.page * LIST_PAGE) as Post[];
     const rows = posts.map(
       (p) => ` ${String(p.no).padStart(4)}  ${pad(p.title, 42)}${pad(p.author, 10)}${kst(p.created_at).slice(5, 10).replace("-", "/")}`,
     );
     this.print(
       [
-        "",
-        ` ${HL}[게시판] 자유게시판${RS}`,
+        CLS,
+        ` ${HL}[게시판] 자유게시판${RS}${" ".repeat(44)}${this.page + 1}/${pages}쪽`,
         HR,
         ` 번호  ${pad("제목", 42)}${pad("글쓴이", 10)}날짜`,
         HR,
         ...(rows.length ? rows : ["  아직 글이 없습니다. w로 첫 글을 써 보세요."]),
         HR,
-        "  번호: 읽기   w: 쓰기   p: 이전   t: 처음   x: 종료",
+        "  번호: 읽기  w: 쓰기  n/b: 다음/앞 쪽  p: 이전  t: 처음  x: 종료",
+        notice,
       ].join("\n"),
     );
-    this.boardPrompt();
-  }
-
-  private boardPrompt() {
     this.ask(" 선택 > ", (line) => {
       const c = line.trim().toLowerCase();
       if (!c) return this.boardList();
       if (/^\d+$/.test(c)) return this.readPost(Number(c));
       if (c === "w") return this.writeTitle();
+      if (c === "n") return this.boardList(this.page + 1, this.page + 1 < pages ? "" : " 마지막 쪽입니다.");
+      if (c === "b") return this.boardList(this.page - 1, this.page > 0 ? "" : " 첫 쪽입니다.");
       if (c === "p") return this.main();
       if (this.nav(c)) return;
-      this.print(" 잘못된 명령입니다.");
-      this.boardPrompt();
+      this.boardList(this.page, " 잘못된 명령입니다.");
     });
   }
 
-  private readPost(no: number) {
+  private readPost(no: number, from = 0) {
     const p = this.db.query("SELECT * FROM posts WHERE no = ? AND board = ?").get(no, BOARD) as Post | null;
-    if (!p) {
-      this.print(" 그런 번호의 글은 없습니다.");
-      return this.boardPrompt();
-    }
+    if (!p) return this.boardList(this.page, " 그런 번호의 글은 없습니다.");
+    const lines = p.body.split("\n");
+    const more = from + BODY_PAGE < lines.length;
     this.print(
-      ["", ` ${HL}${p.no}. ${p.title}${RS}`, ` 글쓴이 ${p.author}   ${kst(p.created_at).slice(0, 16)}`, HR, ...p.body.split("\n").map((l) => " " + l), HR].join("\n"),
+      [
+        CLS,
+        ` ${HL}${p.no}. ${p.title}${RS}`,
+        ` 글쓴이 ${p.author}   ${kst(p.created_at).slice(0, 16)}`,
+        HR,
+        ...lines.slice(from, from + BODY_PAGE).map((l) => " " + l),
+        HR,
+      ].join("\n"),
     );
-    this.ask(" 엔터: 목록 > ", (line) => {
+    this.ask(more ? " -- 계속: 엔터   q: 목록 > " : " 엔터: 목록 > ", (line) => {
       const c = line.trim().toLowerCase();
+      if (more && !c) return this.readPost(no, from + BODY_PAGE);
       if (/^\d+$/.test(c)) return this.readPost(Number(c));
-      if (c && this.nav(c)) return;
+      if (c && c !== "q" && this.nav(c)) return;
       this.boardList();
     });
   }
 
   private writeTitle() {
-    this.print(" 글쓰기를 시작합니다. 제목을 비워 두면 취소됩니다.");
+    this.print([CLS, ` ${HL}[글쓰기] 자유게시판${RS}`, HR, "  제목을 비워 두면 취소됩니다."].join("\n"));
     this.ask(" 제목 : ", (line) => {
       const title = line.trim().slice(0, 40);
-      if (!title) {
-        this.print(" 취소했습니다.");
-        return this.boardList();
-      }
-      this.print(` 본문을 입력하세요.  /s 저장   /a 취소   (최대 ${MAX_BODY_LINES}행)`);
+      if (!title) return this.boardList(this.page, " 글쓰기를 취소했습니다.");
+      this.print(`  본문을 입력하세요.  /s 저장   /a 취소   (최대 ${MAX_BODY_LINES}행)`);
       this.writeBody(title, []);
     });
   }
@@ -325,20 +337,16 @@ export class Session {
     const full = lines.length >= MAX_BODY_LINES;
     this.ask(full ? " 행이 꽉 찼습니다. /s 또는 /a > " : `${String(lines.length + 1).padStart(3)}: `, (line) => {
       const c = line.trim().toLowerCase();
-      if (c === "/a") {
-        this.print(" 취소했습니다.");
-        return this.boardList();
-      }
+      if (c === "/a") return this.boardList(this.page, " 글쓰기를 취소했습니다.");
       if (c === "/s") {
         if (!lines.length) {
-          this.print(" 본문이 비어 있습니다.");
+          this.print("  본문이 비어 있습니다.");
           return this.writeBody(title, lines);
         }
         this.db
           .query("INSERT INTO posts (board, author, title, body, created_at) VALUES (?, ?, ?, ?, ?)")
           .run(BOARD, this.user, title, lines.join("\n"), Date.now());
-        this.print(" 저장했습니다.");
-        return this.boardList();
+        return this.boardList(0, " 저장했습니다.");
       }
       if (!full) lines.push(line.trimEnd());
       this.writeBody(title, lines);
@@ -349,7 +357,7 @@ export class Session {
 
   private enterChat() {
     chat.add(this);
-    this.print(`\n ${HL}[대화실]${RS} 들어왔습니다. 지금 ${chat.size}명.   /w 참가자   /q 나가기`);
+    this.print(`${CLS} ${HL}[대화실]${RS}   /w 참가자   /q 나가기\n${HR}\n  들어왔습니다. 지금 ${chat.size}명.`);
     this.broadcast(` *** ${this.user}님이 들어오셨습니다.`, this);
     this.chatTimer = setTimeout(() => this.print(" *** 대화실에 25분째 계십니다. 잠시 쉬어 가세요."), CHAT_WARN_MS);
     this.chatPrompt();
