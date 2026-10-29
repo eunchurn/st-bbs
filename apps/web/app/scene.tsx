@@ -2,11 +2,13 @@
 // 만드는 법은 st-iyagi 저장소 tools/scene.ts. 터미널 창 뒤에 깔린다.
 
 // 처음 켤 때처럼 두 모니터에 글자가 색을 바꿔 가며 뜨고(monitors.png, 5.3 화면 16장), 아래에 모뎀 초기화 명령이 찍힌다.
-export function Scene({ typed, done }: { typed: string; done: boolean }) {
+// 위쪽 글귀(title.png)는 이야기처럼 알림 상자가 닫힌 뒤에 뜬다.
+export function Scene({ typed, done, title }: { typed: string; done: boolean; title: boolean }) {
   return (
     <div className="scene" aria-hidden>
       <div className={done ? "office done" : "office"}>
         <div className="monitors" />
+        <div className="title-text" style={{ visibility: title ? "visible" : "hidden" }} /> {/* 미리 받아 두려고 늘 그린다 */}
         <pre className="boot">{typed}</pre>
       </div>
     </div>

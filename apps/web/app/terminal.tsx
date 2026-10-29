@@ -312,7 +312,7 @@ export default function Terminal() {
   const online = L.phase === "online";
   return (
     <>
-      <Scene typed={typed} done={!boot} />
+      <Scene typed={typed} done={!boot} title={!boot && !splash} />
       <div className="stage" ref={stageRef}>
         {!boot && splash && <Splash onClose={close} />}
         {!splash && dir && <Directory onDial={dial} onHelp={() => setWin("help")} />}

@@ -61,6 +61,14 @@ body {
   animation: none;
   background-position-y: 100%;
 }
+.title-text {
+  position: absolute;
+  left: 0;
+  top: calc(var(--u) * 17);
+  width: calc(var(--u) * 424);
+  height: calc(var(--u) * 62);
+  background: url("/iyagi/title.png") 0 0 / 100% 100%;
+}
 .boot {
   position: absolute;
   left: 0;
