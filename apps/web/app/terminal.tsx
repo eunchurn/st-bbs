@@ -4,6 +4,7 @@ import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
 import { playDial } from "./modem";
 import { Directory } from "./directory";
+import { News } from "./news";
 import { Scene, Splash } from "./scene";
 
 const BBS_URL = process.env.NEXT_PUBLIC_BBS_URL ?? "ws://localhost:8023/ws";
@@ -57,6 +58,16 @@ export default function Terminal() {
   const [now, setNow] = useState(0);
   const [splash, setSplash] = useState(true);
   const [dir, setDir] = useState(true); // 알림 상자 다음에 전화번호부
+  const [news, setNews] = useState(false); // F1 새소식 창
+  // F1은 어디서나 새소식을 열고 닫는다. ESC는 닫기만.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "F1") e.preventDefault(), setNews((v) => !v);
+      else if (e.key === "Escape") setNews(false);
+    };
+    addEventListener("keydown", key);
+    return () => removeEventListener("keydown", key);
+  }, []);
   const termRef = useRef<import("@xterm/xterm").Terminal | undefined>(undefined);
   const dialRef = useRef<(sound: boolean) => void>(() => {});
   const close = () => setSplash(false);
@@ -66,14 +77,14 @@ export default function Terminal() {
     dialRef.current(sound);
   };
   useEffect(() => {
-    if (splash || !dir) return;
+    if (splash || !dir || news) return;
     const key = (e: KeyboardEvent) => e.key === "Enter" && (e.preventDefault(), dial(!e.shiftKey));
     addEventListener("keydown", key);
     return () => removeEventListener("keydown", key);
-  }, [splash, dir]);
+  }, [splash, dir, news]);
   useEffect(() => {
-    if (!splash && !dir) termRef.current?.focus(); // 창이 보인 뒤에 포커스를 준다
-  }, [splash, dir]);
+    if (!splash && !dir && !news) termRef.current?.focus(); // 창이 보인 뒤에 포커스를 준다
+  }, [splash, dir, news]);
   useEffect(() => {
     if (!splash) return;
     const timer = setTimeout(close, 5000);
@@ -165,7 +176,7 @@ export default function Terminal() {
 
       const dial = async (sound: boolean) => {
         L.phase = "dialing";
-        t.write(`\x1b[2J\x1b[H ATZ\r\n OK\r\n ATDT${PHONE}\r\n 전화 거는 중... (아무 키나 누르면 건너뜁니다)`);
+        t.write(`\x1b[2J\x1b[H AT &C1 B0 X3\r\n OK\r\n ATDT${PHONE}\r\n 전화 거는 중... (아무 키나 누르면 건너뜁니다)`);
         // AudioContext는 키를 누른 직후(사용자 동작 안)에 만들어야 소리가 난다
         const ctx = sound ? new AudioContext() : undefined;
         const raw = ctx && (await handshake);
@@ -229,7 +240,8 @@ export default function Terminal() {
       <Scene online={online} />
       <div className="stage">
         {splash && <Splash onClose={close} />}
-        {!splash && dir && <Directory onDial={dial} />}
+        {!splash && dir && <Directory onDial={dial} onHelp={() => setNews(true)} />}
+        {news && <News onClose={() => setNews(false)} />}
         <div className="win" style={{ visibility: splash || dir ? "hidden" : "visible" }}>
           <div className="title">이야기 5.0 - 01410 하이텔</div>
           <div ref={el} />
@@ -243,6 +255,9 @@ export default function Terminal() {
           <i className={online && now - L.rd < 300 ? "on" : ""} />
         </span>
         <span>연결 {hms(sec)}</span>
+        <button type="button" onClick={() => setNews((v) => !v)}>
+          F1-새소식
+        </button>
         <span>KS5601 완성</span>
         <span>1- 14400-N-8-1</span>
         <span>요금 {(Math.ceil(sec / 60) * WON_PER_MIN).toLocaleString()}원</span>

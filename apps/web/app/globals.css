@@ -198,6 +198,65 @@ body {
   text-align: center;
 }
 
+/* 새소식 창: PC통신처럼 파란 바탕에 흰 글씨 */
+.news {
+  z-index: 2;
+  width: min(94vw, 44em);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  background: #a8a8a8;
+  padding: 3px;
+  border: 2px solid;
+  border-color: #fcfcfc #545454 #545454 #fcfcfc;
+  box-shadow: 8px 8px 0 rgb(0 0 0 / 0.45);
+  font-size: max(13px, 2.1vh);
+}
+.news .title {
+  position: relative;
+}
+.news .title button {
+  position: absolute;
+  right: 4px;
+  top: 0;
+  font: inherit;
+  color: #fcfcfc;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.news-body {
+  overflow: auto;
+  background: #0000a8;
+  color: #fcfcfc;
+  padding: 0.4em 1em;
+  line-height: 1.5;
+}
+.news-body p {
+  margin: 0.6em 0;
+}
+.news-body .hl {
+  color: #fcfc54;
+}
+.news-body ol {
+  margin: 0;
+  padding-left: 2.2em;
+}
+.news-body td:first-child {
+  color: #54fcfc;
+  padding-right: 1.5em;
+}
+.news-body .src {
+  color: #a8a8a8;
+}
+.news-body a {
+  color: #54fcfc;
+}
+.news-foot {
+  text-align: center;
+  padding-top: 3px;
+}
+
 /* 이야기 5.0 아래 막대 */
 .status {
   position: fixed;
@@ -220,6 +279,16 @@ body {
   padding: 0 0.8em;
   border-right: 2px solid #545454;
   box-shadow: 1px 0 #fcfcfc;
+}
+.status button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-right: 2px solid #545454;
+  box-shadow: 1px 0 #fcfcfc;
+  padding: 0 0.8em;
+  cursor: pointer;
 }
 .status .clock {
   margin-left: auto;

@@ -1,4 +1,4 @@
-// 이야기 5.0 전화번호부. 지금은 하이텔 하나만 있다. 아래 단추들은 생김새만 옮겼다(☎만 건다).
+// 이야기 5.0 전화번호부. 지금은 하이텔 하나만 있다. 아래 단추들은 생김새만 옮겼다(☎는 걸고, 설명 H는 새소식).
 const ENTRIES = [{ name: "하이텔", place: "[서울]", phone: "01410", line: "14400-N-8-1[7]" }];
 const ROWS = 10;
 const KEYS = [
@@ -7,7 +7,7 @@ const KEYS = [
   ["삽입", "I"], ["지움", "D"], ["옮김", "M"], ["멈춤", "T"],
 ];
 
-export function Directory({ onDial }: { onDial: (sound: boolean) => void }) {
+export function Directory({ onDial, onHelp }: { onDial: (sound: boolean) => void; onHelp: () => void }) {
   return (
     <div className="dir" role="dialog" aria-label="전화번호부">
       <div className="dir-head">
@@ -38,11 +38,17 @@ export function Directory({ onDial }: { onDial: (sound: boolean) => void }) {
           </button>
         </div>
         <div className="cmd">
-          {KEYS.map(([label, key]) => (
-            <span key={key}>
-              {label} <em>{key}</em>
-            </span>
-          ))}
+          {KEYS.map(([label, key]) =>
+            key === "H" ? (
+              <button type="button" key={key} onClick={onHelp}>
+                {label} <em>{key}</em>
+              </button>
+            ) : (
+              <span key={key}>
+                {label} <em>{key}</em>
+              </span>
+            ),
+          )}
         </div>
       </div>
       <div className="dir-foot">엔터·<i className="tel">☎</i>·두 번 누르기: 걸기 &nbsp; Shift+엔터: 소리 없이</div>
