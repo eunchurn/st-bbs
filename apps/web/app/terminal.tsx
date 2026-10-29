@@ -64,6 +64,26 @@ export default function Terminal() {
   const termRef = useRef<import("@xterm/xterm").Terminal | undefined>(undefined);
   const dialRef = useRef<(sound: boolean) => void>(() => {});
   const hangupRef = useRef(() => {});
+  // 창 상태(윈도우 3.1 식): 보통·최대화·최소화(아이콘). pos는 보통일 때 끌어 옮긴 거리.
+  const [mode, setMode] = useState<"normal" | "max" | "min">("normal");
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [menu, setMenu] = useState(false); // 조절 메뉴 상자
+  const stageRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLDivElement>(null);
+  const fitRef = useRef(() => {});
+  const drag = useRef<{ sx: number; sy: number; x: number; y: number; r: DOMRect } | null>(null);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => fitRef.current()); // 창 크기가 바뀐 뒤 글자 크기를 맞춘다
+    return () => cancelAnimationFrame(id);
+  }, [mode]);
+  useEffect(() => {
+    if (!menu) return;
+    const off = () => setMenu(false);
+    addEventListener("pointerdown", off);
+    return () => removeEventListener("pointerdown", off);
+  }, [menu]);
   // 지름 글쇠는 keys.ts 표로 받는다. 캡처 단계에서 먼저 잡아 xterm에는 넘기지 않는다.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -93,8 +113,8 @@ export default function Terminal() {
     return () => removeEventListener("keydown", key);
   }, [splash, dir, win]);
   useEffect(() => {
-    if (!splash && !dir && !win) termRef.current?.focus(); // 창이 보인 뒤에 포커스를 준다
-  }, [splash, dir, win]);
+    if (!splash && !dir && !win && mode !== "min") termRef.current?.focus(); // 창이 보인 뒤에 포커스를 준다
+  }, [splash, dir, win, mode]);
   useEffect(() => {
     if (!splash) return;
     const timer = setTimeout(close, 5000);
@@ -113,7 +133,24 @@ export default function Terminal() {
     let term: import("@xterm/xterm").Terminal | undefined;
     const L = live.current;
     // 가운데 두기는 CSS가 한다. 소수 배율로 늘리면 줄 사이에 틈이 보여서 글자 크기로만 맞춘다.
-    const fit = () => term && (term.options.fontSize = fontSize());
+    // 최대화하면 무대를 가득 채우는 가장 큰 글자 크기를 쓴다(80x24는 그대로, 글자만 커진다).
+    const fit = () => {
+      if (!term) return;
+      const screen = el.current?.querySelector<HTMLElement>(".xterm-screen");
+      if (modeRef.current !== "max" || !screen || !stageRef.current || !titleRef.current) return void (term.options.fontSize = fontSize());
+      const availW = stageRef.current.clientWidth - 14;
+      const availH = stageRef.current.clientHeight - titleRef.current.offsetHeight - 14;
+      const f = term.options.fontSize!;
+      const cw = screen.offsetWidth / f;
+      const ch = screen.offsetHeight / f;
+      let size = Math.max(8, Math.floor(Math.min(availW / cw, availH / ch)));
+      term.options.fontSize = size;
+      // 칸 크기가 정수 픽셀로 반올림돼 넘칠 수 있어 한 번 더 줄인다
+      requestAnimationFrame(() => {
+        while (size > 8 && (screen.offsetWidth > availW || screen.offsetHeight > availH)) term!.options.fontSize = --size;
+      });
+    };
+    fitRef.current = fit;
     // 접속 협상 녹음은 미리 받아 둔다. 실패하면 합성음으로 대신한다.
     const handshake = fetch("/sounds/handshake.mp3")
       .then((r) => (r.ok ? r.arrayBuffer() : undefined))
@@ -251,15 +288,87 @@ export default function Terminal() {
   return (
     <>
       <Scene online={online} />
-      <div className="stage">
+      <div className="stage" ref={stageRef}>
         {splash && <Splash onClose={close} />}
         {!splash && dir && <Directory onDial={dial} onHelp={() => setWin("help")} />}
         {win === "help" && <Help onClose={() => setWin(null)} />}
         {win === "news" && <News onClose={() => setWin(null)} />}
-        <div className="win" style={{ visibility: splash || dir ? "hidden" : "visible" }}>
-          <div className="title">이야기 5.0 - 01410 하이텔</div>
-          <div ref={el} />
+        <div
+          className={`win ${mode}`}
+          style={{
+            visibility: splash || dir || mode === "min" ? "hidden" : "visible",
+            transform: mode === "normal" ? `translate(${pos.x}px, ${pos.y}px)` : undefined,
+          }}
+        >
+          <div
+            className="title"
+            ref={titleRef}
+            onDoubleClick={() => setMode((m) => (m === "max" ? "normal" : "max"))}
+            onPointerDown={(e) => {
+              if (mode !== "normal" || e.button !== 0) return;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              drag.current = { sx: e.clientX, sy: e.clientY, x: pos.x, y: pos.y, r: e.currentTarget.parentElement!.getBoundingClientRect() };
+            }}
+            onPointerMove={(e) => {
+              const d = drag.current;
+              if (!d) return;
+              // 제목 막대가 화면 밖으로 나가지 않게: 위는 0, 아래는 상태 막대 위, 좌우는 60px은 남긴다
+              const stageH = stageRef.current?.clientHeight ?? innerHeight;
+              const dx = Math.min(Math.max(e.clientX - d.sx, 60 - d.r.right), innerWidth - 60 - d.r.left);
+              const dy = Math.min(Math.max(e.clientY - d.sy, -d.r.top), stageH - 30 - d.r.top);
+              setPos({ x: d.x + dx, y: d.y + dy });
+            }}
+            onPointerUp={() => ((drag.current = null), termRef.current?.focus())}
+          >
+            <button
+              type="button"
+              className="sys"
+              aria-label="조절 메뉴"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setMenu((v) => !v)}
+              onDoubleClick={(e) => (e.stopPropagation(), hangupRef.current(), setDir(true), setMode("normal"))}
+            />
+            <span>이야기 5.0 - 01410 하이텔</span>
+            <button type="button" className="mm" aria-label="최소화" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()} onClick={() => setMode("min")}>
+              ▼
+            </button>
+            <button
+              type="button"
+              className="mm"
+              aria-label={mode === "max" ? "이전 크기" : "최대화"}
+              onPointerDown={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              onClick={() => setMode((m) => (m === "max" ? "normal" : "max"))}
+            >
+              {mode === "max" ? <span className="ud">▲<br />▼</span> : "▲"}
+            </button>
+            {menu && (
+              <ul className="sysmenu" onPointerDown={(e) => e.stopPropagation()}>
+                {(
+                  [
+                    ["이전 크기(R)", mode !== "normal", () => setMode("normal")],
+                    ["최소화(N)", true, () => setMode("min")],
+                    ["최대화(X)", mode !== "max", () => setMode("max")],
+                    ["닫기(C)", true, () => (hangupRef.current(), setDir(true), setMode("normal"))],
+                  ] as [string, boolean, () => void][]
+                ).map(([label, on, act]) => (
+                  <li key={label}>
+                    <button type="button" disabled={!on} onClick={() => (setMenu(false), act())}>
+                      {label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="term" ref={el} />
         </div>
+        {mode === "min" && !splash && !dir && (
+          <button type="button" className="icon" onClick={() => setMode("normal")}>
+            <span className="icon-img">이야기</span>
+            <span className="icon-label">이야기 5.0 - 하이텔</span>
+          </button>
+        )}
       </div>
       {/* 이야기 5.0의 아래 막대: 입력 모드, 모뎀 불(CD·RD), 연결 시간, 글자판, 통신 설정, 요금, 시계 */}
       <div className="status">
