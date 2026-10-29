@@ -813,10 +813,10 @@ export class Session {
     this.page = Math.min(Math.max(page, 0), pages - 1);
     const posts = this.db
       .query(
-        `SELECT no, author, title, created_at, views, ${LIKES}, (SELECT name FROM users u WHERE u.id = posts.author) AS name FROM posts WHERE board = ? ORDER BY no DESC LIMIT ? OFFSET ?`,
+        `SELECT no, author, title, created_at, views, ${LIKES}, (SELECT coalesce(name, id) FROM users u WHERE u.id = posts.author) AS name FROM posts WHERE board = ? ORDER BY no DESC LIMIT ? OFFSET ?`,
       )
       .all(b.key, LIST_PAGE, this.page * LIST_PAGE) as (Post & { name: string | null })[];
-    // 하이텔 플라자처럼 번호·이름·날짜·조회·추천·제목 순서. 큰마을은 이름 옆에 ID도 둔다(옛 자료 글은 ID가 없다).
+    // 하이텔 플라자처럼 번호·이름·날짜·조회·추천·제목 순서. 큰마을은 이름 옆에 ID도 둔다(옛 자료 글은 ID가 없고, 이름 없이 가입한 사람은 ID를 이름으로 쓴다).
     const plaza = b.key === "free";
     const num = (n: number) => String(n).padStart(4);
     const who = (p: Post & { name: string | null }) =>
