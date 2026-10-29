@@ -34,7 +34,7 @@ spec:
             - containerPort: 8023
           env:
             - name: ALLOWED_ORIGINS
-              value: https://st-bbs.vercel.app
+              value: https://st-bbs.vercel.app,https://st-iyagi.vercel.app,iyagi://app
           volumeMounts:
             - name: data
               mountPath: /data

@@ -56,23 +56,38 @@ const SHADOW = "\x1b[0;40m";
 
 // 하이텔 초기화면의 세 칸. 번호는 그 화면을 따른다.
 const COMM: Item[] = [
-  { no: "11", go: "plaza", name: "플라자" },
-  { no: "12", go: "memo", name: "쪽지함" },
+  { no: "11", go: "plaza", name: "네티즌광장" },
+  { no: "12", go: "memo", name: "메일센터" },
   { no: "13", go: "chat", name: "대화실" },
-  { no: "14", go: "club", name: "동호회/모임" },
-  { no: "15", go: "small", name: "소모임" },
+  { no: "14", go: "data", name: "자료실" },
+  { no: "15", go: "club", name: "동호회/모임" },
+  { no: "16", go: "game", name: "게임/바둑" },
+  { no: "17", go: "internet", name: "인터넷" },
 ];
 const CONTENTS: Item[] = [
-  { no: "21", go: "data", name: "자료실" },
-  { no: "22", go: "quiz", name: "퀴즈방" },
+  { no: "21", go: "news", name: "뉴스/매거진" },
+  { no: "22", go: "life", name: "생활/가정" },
+  { no: "23", go: "ent", name: "방송/연예" },
+  { no: "24", go: "culture", name: "문화/레저" },
+  { no: "25", go: "stock", name: "증권/금융" },
+  { no: "26", go: "biz", name: "기업네트워크" },
+  { no: "27", go: "bank", name: "홈뱅킹" },
 ];
 const SPECIAL: Item[] = [
-  { no: "1", go: "guide", name: "하이텔 길라잡이" },
+  { no: "1", go: "guide", name: "HiTEL길라잡이" },
   { no: "2", go: "newbie", name: "초보자마당" },
-  { no: "3", go: "event", name: "생생 이벤트" },
-  { no: "4", go: "class", name: "사이버 교실" },
+  { no: "3", go: "find", name: "정보 찾기" },
+  { no: "4", go: "event", name: "생생 이벤트" },
+  { no: "5", go: "class", name: "사이버 교실" },
 ];
-const MENU = [...COMM, ...CONTENTS, ...SPECIAL];
+// 첫 화면에는 없지만 go로 가는 곳(no를 go와 같게 둬서 번호로는 안 걸린다)
+const HIDDEN: Item[] = [
+  { no: "small", go: "small", name: "소모임" },
+  { no: "quiz", go: "quiz", name: "퀴즈방" },
+];
+const MENU = [...COMM, ...CONTENTS, ...SPECIAL, ...HIDDEN];
+// 첫 화면 명령 줄의 짧은 이름
+const ALIAS: Record<string, string> = { mm: "memo", say: "chat" };
 
 // 하이텔에 있던 동호회 이름을 빌렸다. 소개 글은 이 재현을 위해 새로 쓴 것이다.
 const CLUBS: Club[] = [
@@ -636,21 +651,29 @@ export class Session {
               return this.signup(id);
             }
             const hash = await Bun.password.hash(pw);
-            // 확인과 가입 사이에 누가 같은 ID를 가져갔을 수 있다
-            const r = this.db
-              .query("INSERT OR IGNORE INTO users (id, pw, created_at) VALUES (?, ?, ?)")
-              .run(id, hash, Date.now());
-            if (r.changes === 0) {
-              this.print("  방금 다른 분이 이 ID로 가입했습니다.");
-              return this.askId();
-            }
-            this.welcome(id, `${id}님, 가입을 환영합니다.`);
+            this.askName(id, hash);
           },
           true,
         );
       },
       true,
     );
+  }
+
+  // 큰마을 목록의 이름 칸에 쓴다. 실명을 묻지 않으므로 별명이면 된다.
+  private askName(id: string, hash: string) {
+    this.ask("  이름(별명, 한글 4자까지. 엔터는 ID) : ", (line) => {
+      const name = pad(line.replace(/[\x00-\x1f\x7f]/g, "").trim(), 8).trim() || id;
+      // 확인과 가입 사이에 누가 같은 ID를 가져갔을 수 있다
+      const r = this.db
+        .query("INSERT OR IGNORE INTO users (id, pw, created_at, name) VALUES (?, ?, ?, ?)")
+        .run(id, hash, Date.now(), name);
+      if (r.changes === 0) {
+        this.print("  방금 다른 분이 이 ID로 가입했습니다.");
+        return this.askId();
+      }
+      this.welcome(id, `${name}님, 가입을 환영합니다.`);
+    });
   }
 
   private welcome(id: string, greet = `${id}님 반갑습니다.`) {
@@ -766,13 +789,13 @@ export class Session {
         this.at(4, 55) + PANEL + center(`${HL}* Hi-Special *${PANEL}`, 24) + RS,
         this.lines(8, 4, items(COMM)),
         this.lines(8, 30, items(CONTENTS)),
-        this.at(15, 1) + notice,
-        this.at(17, 1) + " 이동(GO) 플라자(PLAZA) 쪽지(MEMO) 대화(CHAT) 동호회(CLUB) 처음(T) 종료(X)",
+        this.at(16, 1) + notice,
+        this.at(18, 1) + " 이동(GO,인덱스) 통화(CALL) 대화(SAY) 쪽지(MM) 메세지(ME) 프로필(PF) 명령어(CMD)",
       ].join(""),
-      18,
+      19,
     );
-    this.ask(" >> ", (line) => {
-      const c = line.trim().toLowerCase();
+    this.ask(" 기타(ETC) 도움말(H) >> ", (line) => {
+      const c = ALIAS[line.trim().toLowerCase()] ?? line.trim().toLowerCase();
       if (!c || c === "p") return this.main();
       const item = MENU.find((m) => m.no === c || m.go === c);
       if (item) return this.open(item);
@@ -789,15 +812,21 @@ export class Session {
     const pages = Math.max(1, Math.ceil(total / LIST_PAGE));
     this.page = Math.min(Math.max(page, 0), pages - 1);
     const posts = this.db
-      .query(`SELECT no, author, title, created_at, views, ${LIKES} FROM posts WHERE board = ? ORDER BY no DESC LIMIT ? OFFSET ?`)
-      .all(b.key, LIST_PAGE, this.page * LIST_PAGE) as Post[];
-    // 하이텔 플라자처럼 번호·이름·날짜·조회·추천·제목 순서
+      .query(
+        `SELECT no, author, title, created_at, views, ${LIKES}, (SELECT name FROM users u WHERE u.id = posts.author) AS name FROM posts WHERE board = ? ORDER BY no DESC LIMIT ? OFFSET ?`,
+      )
+      .all(b.key, LIST_PAGE, this.page * LIST_PAGE) as (Post & { name: string | null })[];
+    // 하이텔 플라자처럼 번호·이름·날짜·조회·추천·제목 순서. 큰마을은 이름 옆에 ID도 둔다(옛 자료 글은 ID가 없다).
+    const plaza = b.key === "free";
     const num = (n: number) => String(n).padStart(4);
-    const rows = posts.map((p) => ` ${num(p.no)}  ${pad(p.author, 9)}${pad(mmdd(p.created_at), 7)}${num(p.views)} ${num(p.likes)}  ${pad(p.title, 42)}`);
+    const who = (p: Post & { name: string | null }) =>
+      plaza ? pad(p.name ?? p.author, 9) + pad(p.name ? p.author : "", 10) : pad(p.author, 9);
+    const tw = plaza ? 32 : 42;
+    const rows = posts.map((p) => ` ${num(p.no)}  ${who(p)}${pad(mmdd(p.created_at), 7)}${num(p.views)} ${num(p.likes)}  ${pad(p.title, tw)}`);
     this.draw(
       [
         this.header(b.code, b.title, `${this.page + 1}/${pages}쪽`),
-        this.head(4, 2, 76, pad(`번호  ${pad("이름", 9)}${pad("날짜", 7)}조회 추천  제목`, 76), CYAN),
+        this.head(4, 2, 76, pad(`번호  ${pad("이름", 9)}${plaza ? pad("ID", 10) : ""}${pad("날짜", 7)}조회 추천  제목`, 76), CYAN),
         this.lines(6, 1, rows.length ? rows : ["  아직 글이 없습니다. w로 첫 글을 써 보세요."]),
         this.at(20, 1) + notice,
         this.at(21, 1) + " 읽기(번호) 쓰기(W) 다음(N) 앞(B) 이전(P) 처음(T) 종료(X)",

@@ -44,5 +44,6 @@ export function openDb(path = process.env.DB_PATH ?? "bbs.db") {
     db.exec("ALTER TABLE posts ADD COLUMN views INTEGER NOT NULL DEFAULT 0");
   if (!db.query("SELECT 1 FROM pragma_table_info('users') WHERE name = 'last_seen'").get())
     db.exec("ALTER TABLE users ADD COLUMN last_seen INTEGER");
+  if (!db.query("SELECT 1 FROM pragma_table_info('users') WHERE name = 'name'").get()) db.exec("ALTER TABLE users ADD COLUMN name TEXT");
   return db;
 }
