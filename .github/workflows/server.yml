@@ -55,7 +55,9 @@ jobs:
           mkdir -p ~/.kube
           printf '%s' "$KUBE_CONFIG" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
-      - run: sed -i "s/newTag: .*/newTag: ${{ github.sha }}/" k8s/kustomization.yaml
+      - name: pin image
+        run: |
+          sed -i "s/newTag: .*/newTag: ${{ github.sha }}/" k8s/kustomization.yaml
       - run: kubectl apply -k k8s
       - run: kubectl rollout status deployment/st-bbs-server --timeout=180s
       - run: curl -fsS https://bbs.sophonz.ai/healthz
