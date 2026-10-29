@@ -116,6 +116,88 @@ body {
   display: inline-block;
 }
 
+/* 이야기 전화번호부: 청록 판 위에 회색 목록과 단추 */
+.dir {
+  z-index: 1;
+  background: #00a8a8;
+  padding: 0.6em;
+  width: min(94vw, 40em);
+  border: 2px solid;
+  border-color: #fcfcfc #545454 #545454 #fcfcfc;
+  box-shadow: 8px 8px 0 rgb(0 0 0 / 0.45);
+  font-size: max(13px, 2.3vh);
+}
+.dir-head,
+.dir-list li {
+  display: grid;
+  grid-template-columns: 2em 1fr 7em 9em;
+}
+.dir-head {
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1.5em;
+  margin-bottom: 0.5em;
+}
+.dir-head span,
+.dir-keys span,
+.dir-keys button {
+  background: #a8a8a8;
+  color: #000;
+  text-align: center;
+  padding: 0.15em 0;
+  border: 2px solid;
+  border-color: #fcfcfc #545454 #545454 #fcfcfc;
+}
+.dir-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.4em;
+  background: #a8a8a8;
+  border: 2px solid;
+  border-color: #545454 #fcfcfc #fcfcfc #545454;
+}
+.dir-list li {
+  padding: 0.05em 0.3em;
+  min-height: 1.25em;
+}
+.dir-list li b {
+  font-weight: normal;
+}
+.dir-list li.sel {
+  background: #000;
+  color: #fcfcfc;
+  cursor: pointer;
+}
+.dir-keys {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 1.5em;
+  margin-top: 0.6em;
+}
+.dir-keys .nav,
+.dir-keys .cmd {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+}
+.dir-keys button {
+  font: inherit;
+  cursor: pointer;
+}
+.dir-keys em {
+  font-style: normal;
+  color: #00a800;
+}
+/* 둥근모에는 ☎ 글자가 없다 */
+.tel {
+  font-style: normal;
+  font-family: "Apple Symbols", "Segoe UI Symbol", "Noto Sans Symbols", sans-serif;
+}
+.dir-foot {
+  margin-top: 0.6em;
+  color: #fcfcfc;
+  text-align: center;
+}
+
 /* 이야기 5.0 아래 막대 */
 .status {
   position: fixed;

@@ -3,6 +3,7 @@
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
 import { playDial } from "./modem";
+import { Directory } from "./directory";
 import { Scene, Splash } from "./scene";
 
 const BBS_URL = process.env.NEXT_PUBLIC_BBS_URL ?? "ws://localhost:8023/ws";
@@ -55,10 +56,26 @@ export default function Terminal() {
   // 시계는 서버 렌더와 어긋나지 않게 브라우저에서만 채운다
   const [now, setNow] = useState(0);
   const [splash, setSplash] = useState(true);
+  const [dir, setDir] = useState(true); // 알림 상자 다음에 전화번호부
   const termRef = useRef<import("@xterm/xterm").Terminal | undefined>(undefined);
+  const dialRef = useRef<(sound: boolean) => void>(() => {});
   const close = () => setSplash(false);
+  // 전화번호부에서 걸면 번호부를 닫고 터미널에서 전화를 건다
+  const dial = (sound: boolean) => {
+    setDir(false);
+    dialRef.current(sound);
+  };
   useEffect(() => {
-    if (!splash) return void termRef.current?.focus(); // 창이 보인 뒤에 포커스를 준다
+    if (splash || !dir) return;
+    const key = (e: KeyboardEvent) => e.key === "Enter" && (e.preventDefault(), dial(!e.shiftKey));
+    addEventListener("keydown", key);
+    return () => removeEventListener("keydown", key);
+  }, [splash, dir]);
+  useEffect(() => {
+    if (!splash && !dir) termRef.current?.focus(); // 창이 보인 뒤에 포커스를 준다
+  }, [splash, dir]);
+  useEffect(() => {
+    if (!splash) return;
     const timer = setTimeout(close, 5000);
     addEventListener("keydown", close);
     return () => (clearTimeout(timer), removeEventListener("keydown", close));
@@ -123,7 +140,7 @@ export default function Terminal() {
         L.phase = "offline";
         L.since = 0;
         prompt = buf = "";
-        t.write(`\r\n${msg}\r\n\r\n 엔터를 누르면 다시 겁니다.   (S: 소리 없이 접속)\r\n`);
+        t.write(`\r\n${msg}\r\n\r\n 엔터를 누르면 전화번호부로 돌아갑니다.\r\n`);
       };
 
       const connect = () => {
@@ -164,7 +181,7 @@ export default function Terminal() {
         if (!disposed) connect();
       };
 
-      t.write(" 셈틀통신 이야기 5.0  -  하이텔 재현판\r\n\r\n 엔터: 01410 전화 걸기   S: 소리 없이 접속   Alt+Enter: 전체 화면\r\n");
+      dialRef.current = (sound) => L.phase !== "dialing" && L.phase !== "online" && dial(sound);
 
       t.onData((d) => {
         if (d === "\x1b\r") return toggleFullscreen(); // Alt+Enter
@@ -172,8 +189,7 @@ export default function Terminal() {
         else if (/[a-zA-Z]/.test(d)) L.hangul = false;
         if (L.phase === "dialing") return skip();
         if (L.phase === "idle" || L.phase === "offline") {
-          if (d === "\r") dial(true);
-          else if (d.toLowerCase() === "s") dial(false);
+          if (d === "\r") setDir(true);
           return;
         }
         if (L.phase !== "online" || d.startsWith("\x1b")) return; // 방향키·기능키는 쓰지 않는다
@@ -213,7 +229,8 @@ export default function Terminal() {
       <Scene online={online} />
       <div className="stage">
         {splash && <Splash onClose={close} />}
-        <div className="win" style={{ visibility: splash ? "hidden" : "visible" }}>
+        {!splash && dir && <Directory onDial={dial} />}
+        <div className="win" style={{ visibility: splash || dir ? "hidden" : "visible" }}>
           <div className="title">이야기 5.0 - 01410 하이텔</div>
           <div ref={el} />
         </div>
