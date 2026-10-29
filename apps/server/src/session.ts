@@ -12,8 +12,20 @@ type Post = { no: number; author: string; title: string; body: string; created_a
 type Memo = { id: number; sender: string; body: string; created_at: number; read_at: number | null };
 type Item = { no: string; go: string; name: string };
 type ClubBoard = { no: string; name: string; key?: string };
-// castle: 환타지동호회처럼 첫 화면이 성 그림이다. chat: 동호회 안 대화방 번호.
-type Club = { go: string; name: string; desc: string[]; boards?: ClubBoard[]; castle?: boolean; chat?: string };
+// castle: 환타지동호회처럼 첫 화면이 성 그림이다. chat: 동호회 안 대화방.
+// grid: 아트미디어처럼 게시판 번호를 두 줄씩 늘어놓은 첫 화면. data: 자료실 목록(data.code로 연다). leave: 탈퇴 번호.
+type Club = {
+  go: string;
+  name: string;
+  desc: string[];
+  boards?: ClubBoard[];
+  castle?: boolean;
+  chat?: { no: string; name: string };
+  grid?: { title: string; banner: string; rows: [string, string][][] };
+  data?: { code: string; name: string; rooms: string[] };
+  info?: string;
+  leave?: string;
+};
 type Small = { go: string; title: string; clubs: Club[] };
 type Section = { title: string; items: { no: string; name: string }[] };
 type Board = { key: string; code: string; title: string; back: () => void; canWrite: () => boolean };
@@ -199,7 +211,7 @@ const FNTSY: Club = {
   name: "환타지동호회",
   desc: ["판타지 소설을 쓰고 읽는 사람들의 동호회입니다."],
   castle: true,
-  chat: "4",
+  chat: { no: "4", name: "환상 주점" },
   boards: [
     ["44", "과학소설"], ["88", "인터넷"], ["55", "RPG동호회"], ["26", "작가와 독자와의 대화"], ["25", "왕국평론회"],
     ["24", "음유시인의 노래터"], ["23", "단편란"], ["27", "중편란"], ["2", "공지사항"], ["3", "로완에게"], ["6", "여론의 광장"],
@@ -209,6 +221,43 @@ const FNTSY: Club = {
   ].map(([no, name]) => ({ no, name })),
 };
 CLUBS.push(FNTSY);
+
+// 천리안 아트미디어 동호회(go am). 1994년 책에 실린 첫 화면과 보물창고 목록을 옮겼다.
+const ARTMEDIA: Club = {
+  go: "am",
+  name: "아트미디어",
+  desc: ["멀티미디어와 광고, 윈도우즈를 다루는 동호회입니다. 천리안의 A/V 동호회에서 시작해 멀티미디어 동호회를 거쳐 아트미디어가 됐습니다."],
+  chat: { no: "c", name: "여기모여 대화를" },
+  info: "am",
+  leave: "99",
+  grid: {
+    title: "A r t   M e d i a  -  The Special Interest Group",
+    banner: "멋진 Windows 와 Multi-Media 의 세계로의 입성을 환영합니다",
+    rows: [
+      [["a1", "w1"], ["a2", "w2"], ["a3", "w3"]],
+      [["m1", "i"], ["m2", "q"]],
+      [["1", "s"], ["2", "b"], ["c", "b1"]],
+      [["am", "99"]],
+    ],
+  },
+  data: {
+    code: "b",
+    name: "아미동 보물창고",
+    rooms: [
+      "Windows & NT Utility", "Windows & NT Sound/Graphic Application", "Windows & NT Game & Driver & ETC...",
+      "OS/2 Applications & Driver 자료실...", "DOS Utility & Game & Macintosh", "DOS Sound/Graphic Application",
+      "소그룹 전용 자료실", "Sample (Sound,Pic,Icon,Font Data,...)", "Documents & Texts", "Private Room (개인화일 교환의 장)",
+      "DOS Multimedia Application & Demo",
+    ],
+  },
+  boards: [
+    ["a1", "광고 게시판"], ["a2", "광고 아카데미"], ["a3", "광고 소모임"], ["w1", "윈도우즈 활용강좌 & Tip"],
+    ["w2", "윈도우즈 프로그래밍 소모임"], ["w3", "윈도우즈 애플리케이션 소모임"], ["m1", "멀티미디어 강좌"],
+    ["m2", "하드웨어활용 및 응용"], ["i", "정보/소식을 나누어요~"], ["q", "무엇이든 물어보세요~"], ["1", "아트 십자로"],
+    ["2", "새로 왔어요!"], ["s", "아트 알림판"], ["b1", "보물창고 Q & A"],
+  ].map(([no, name]) => ({ no, name })),
+};
+CLUBS.push(ARTMEDIA);
 
 // 케텔 접속 화면처럼 글자 자체로 그린 로고. 윗줄일수록 오른쪽으로 밀어 기울인다.
 const GLYPHS: Record<string, string[]> = {
@@ -779,7 +828,11 @@ export class Session {
   private clubHome(club: Club, notice = "") {
     const member = this.isMember(club);
     const boards = club.boards ?? CLUB_BOARDS;
-    const [screen, promptRow] = club.castle ? this.castle(club, notice, member) : this.clubIntro(club, notice, member);
+    const [screen, promptRow] = club.castle
+      ? this.castle(club, notice, member)
+      : club.grid
+        ? this.grid(club, notice, member)
+        : this.clubIntro(club, notice, member);
     this.draw(screen, promptRow);
     this.ask(" >> ", (line) => {
       const c = line.trim().toLowerCase();
@@ -790,7 +843,17 @@ export class Session {
         this.db.query("INSERT OR IGNORE INTO club_members (club, user, joined_at) VALUES (?, ?, ?)").run(club.go, this.user, Date.now());
         return this.clubHome(club, ` ${HL}${club.name}에 가입했습니다. 반갑습니다.${RS}`);
       }
-      if (club.chat && c === club.chat) return this.enterChat({ no: `${club.go}:${c}`, name: `${club.name} 환상 주점` }, () => this.clubHome(club));
+      if (club.chat && c === club.chat.no) return this.enterChat({ no: `${club.go}:${c}`, name: `${club.name} ${club.chat.name}` }, () => this.clubHome(club));
+      if (club.data && c === club.data.code) return this.clubData(club);
+      if (club.info && c === club.info) {
+        const j = this.db.query("SELECT joined_at FROM club_members WHERE club = ? AND user = ?").get(club.go, this.user) as { joined_at: number } | null;
+        return this.clubHome(club, ` 회원 ${this.members(club)}명. ${j ? `${this.user}님은 ${kst(j.joined_at).slice(0, 10)}에 가입했습니다.` : "아직 가입하지 않았습니다. (J)"}`);
+      }
+      if (club.leave && c === club.leave) {
+        if (!member) return this.clubHome(club, " 가입하지 않은 동호회입니다.");
+        this.db.query("DELETE FROM club_members WHERE club = ? AND user = ?").run(club.go, this.user);
+        return this.clubHome(club, ` ${club.name}에서 탈퇴했습니다. 다시 오시려면 J.`);
+      }
       const sub = boards.find((b) => b.no === c);
       if (sub) {
         this.board = {
@@ -832,6 +895,72 @@ export class Session {
       ].join(""),
       24,
     ];
+  }
+
+  // 두 칸씩 늘어놓은 게시판 번호. 게시판이면 [글 수]를 붙인다.
+  private grid(club: Club, notice: string, member: boolean): [string, number] {
+    const g = club.grid!;
+    const DIM = "\x1b[0;37m";
+    const names: Record<string, string> = Object.fromEntries((club.boards ?? []).map((b) => [b.no, b.name]));
+    if (club.chat) names[club.chat.no] = club.chat.name;
+    if (club.data) names[club.data.code] = club.data.name;
+    if (club.info) names[club.info] = `${club.name} 회원정보`;
+    if (club.leave) names[club.leave] = `${club.name}여 안녕~`;
+    const count = (no: string) => (this.db.query("SELECT count(*) AS n FROM posts WHERE board = ?").get(`club:${club.go}:${no}`) as { n: number }).n;
+    const cell = (no: string) => {
+      const label = `${no.toUpperCase().padStart(2)}. ${names[no]}`;
+      const n = (club.boards ?? []).some((b) => b.no === no) ? `[${count(no)}]` : "";
+      return pad(label, 36 - n.length) + n;
+    };
+    const out = [this.header(`GO ${club.go.toUpperCase()}`, club.name), this.at(4, 1) + HL + center(g.title, 78) + RS];
+    let row = 5;
+    const rule = () => out.push(this.at(row++, 1) + DIM + "─".repeat(78) + RS);
+    g.rows.forEach((sec, i) => {
+      rule();
+      for (const [a, b] of sec) out.push(this.at(row++, 2) + cell(a) + "   " + cell(b));
+      if (i === 1) rule(), out.push(this.at(row++, 1) + center(g.banner, 78));
+    });
+    rule();
+    out.push(this.at(row + 1, 1) + notice, this.at(row + 2, 1) + ` 들어가기(번호) ${member ? "" : "가입(J) "}이전(P) 처음(T) 종료(X)`);
+    return [out.join(""), row + 3];
+  }
+
+  // 동호회 자료실: 번호·자료실명·자료수·최신등록일
+  private clubData(club: Club, notice = "") {
+    const d = club.data!;
+    const key = (i: number) => `club:${club.go}:${d.code}:${i + 1}`;
+    const rows = d.rooms.map((name, i) => {
+      const r = this.db.query("SELECT count(*) AS n, max(created_at) AS last FROM posts WHERE board = ?").get(key(i)) as { n: number; last: number | null };
+      return ` ${String(i + 1).padStart(4)}   ${pad(name, 44)}${String(r.n).padStart(6)}    ${r.last ? kst(r.last).slice(2, 10).replaceAll("-", "/") : ""}`;
+    });
+    this.draw(
+      [
+        this.header(`GO ${club.go.toUpperCase()}`, `${club.name} [${d.name}]`),
+        this.head(4, 2, 76, pad(` 번호   ${pad("자 료 실 명", 44)}자료수    최신등록일`, 76), CYAN),
+        this.lines(6, 1, rows),
+        this.at(19, 1) + notice,
+        this.at(20, 1) + " 들어가기(번호) 이전(P) 처음(T) 종료(X)",
+      ].join(""),
+      21,
+    );
+    this.ask(" >> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (!c) return this.clubData(club);
+      if (c === "p") return this.clubHome(club);
+      const i = Number(c) - 1;
+      if (d.rooms[i]) {
+        this.board = {
+          key: key(i),
+          code: `GO ${club.go.toUpperCase()}`,
+          title: `${d.name} [${d.rooms[i]}]`,
+          back: () => this.clubData(club),
+          canWrite: () => this.isMember(club),
+        };
+        return this.boardList(0);
+      }
+      if (this.nav(c)) return;
+      this.clubData(club, " 그런 자료실은 없습니다.");
+    });
   }
 
   private clubIntro(club: Club, notice: string, member: boolean): [string, number] {

@@ -202,5 +202,20 @@ test("옛 PC통신 글은 맞는 게시판에 한 번만 들어가고 끝에 원
   expect(rows.length).toBe(1);
   expect(rows[0].board).toBe("data:12");
   expect(rows[0].body.endsWith("출처: https://ktsmemo.cafe24.com/s/OldFiles/651")).toBe(true);
-  expect(db.query("SELECT count(*) AS n FROM posts").get()).toEqual({ n: 11 });
+  expect(db.query("SELECT count(*) AS n FROM posts").get()).toEqual({ n: 52 });
+});
+
+test("아트미디어는 두 줄 첫 화면에서 게시판·보물창고·대화방·탈퇴로 간다", async () => {
+  const a = await client();
+  seed(a.db);
+  await type(a.s, "hitel", "art01", "pass1", "pass1", "go am");
+  expect(a.text()).toContain("A2. 광고 아카데미");
+  expect(a.text()).toContain("[15]");
+  await type(a.s, "j", "b", "10", "w", "샘플 교환", "웨이브 파일", "/s", "p", "p", "c");
+  expect(a.db.query("SELECT board FROM posts WHERE author = 'art01'").get()).toEqual({ board: "club:am:b:10" });
+  expect(a.text()).toContain("아트미디어 여기모여 대화를");
+  await type(a.s, "/q", "99");
+  expect(a.text()).toContain("탈퇴했습니다");
+  expect(a.db.query("SELECT count(*) AS n FROM club_members").get()).toEqual({ n: 0 });
+  a.s.end();
 });
