@@ -41,9 +41,9 @@ export function encode(s: string) {
   return new Uint8Array(out);
 }
 
-// 이야기는 ESC[0m(되돌리기)을 무시해서 앞 색이 남는다. 되돌리기를 흰 글씨·검은 바탕으로 풀어 쓴다.
+// 이야기는 ESC[0m(되돌리기)을 무시해서 앞 색이 남는다. 되돌리기를 회색 글씨·파란 바탕(이야기 기본, 하이텔 화면)으로 풀어 쓴다.
 export const sgr = (s: string) =>
-  s.replace(/\x1b\[([\d;]*)m/g, (_, p: string) => `\x1b[${p.split(";").flatMap((n) => (n === "" || n === "0" ? ["0", "37", "40"] : [n])).join(";")}m`);
+  s.replace(/\x1b\[([\d;]*)m/g, (_, p: string) => `\x1b[${p.split(";").flatMap((n) => (n === "" || n === "0" ? ["0", "37", "44"] : [n])).join(";")}m`);
 
 export type Raw = { input(bytes: Uint8Array): void; end(): void };
 

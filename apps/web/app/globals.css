@@ -1,3 +1,9 @@
+/* 이야기 5.3 글꼴: 에뮬레이터 화면에서 떼어 낸 16점 비트맵(완성형 한글 2350자, ASCII, 자모, 전각). 없는 글자는 둥근모로 */
+@font-face {
+  font-family: "Iyagi";
+  src: url("/iyagi/iyagi.woff2") format("woff2");
+  font-display: block;
+}
 @font-face {
   font-family: "DungGeunMo";
   src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/DungGeunMo.woff") format("woff");
@@ -10,44 +16,20 @@ body {
   height: 100%;
   overflow: hidden;
   background: #0000a8;
-  font-family: DungGeunMo, monospace;
+  font-family: Iyagi, DungGeunMo, monospace;
+}
+/* 상태 줄과 알림 상자의 크기. 터미널 글자 크기(창 높이의 1/32)와 맞춘다 */
+:root {
+  --fs: max(16px, calc(100vh / 32));
+  --dot: calc(var(--fs) / 16);
 }
 
-/* 이야기 5.0 사무실: 위는 벽, 아래는 바닥. 책상 높이는 화면의 64% */
+/* 이야기 5.3 사무실 그림(640x464). 점이 뭉개지지 않게 늘린다 */
 .scene {
   position: fixed;
   inset: 0;
-  background: linear-gradient(#5454fc 0 66%, #0000a8 66% 100%);
-}
-.desk {
-  position: absolute;
-  left: 0;
-  width: 74%;
-  top: 62%;
-  height: 4%;
-  background: #fcfcfc;
-  border-bottom: 1.5vh solid #a8a8a8;
-}
-.desk-items {
-  position: absolute;
-  left: 1vw;
-  top: 33%;
-  height: 32%;
-}
-.cabinet {
-  position: absolute;
-  right: 0;
-  bottom: 4vh;
-  height: 92%;
-}
-.credit {
-  position: absolute;
-  top: 2vh;
-  width: 100%;
-  text-align: center;
-  color: #fcfcfc;
-  font-size: max(13px, 2.2vh);
-  line-height: 1.5;
+  background: #0000a8 url("/iyagi/office.png") center top / cover no-repeat;
+  image-rendering: pixelated;
 }
 
 /* 터미널 창: 가운데, 아래 상태 막대 높이만큼 비운다 */
@@ -202,41 +184,16 @@ body {
 .splash {
   z-index: 1;
   cursor: pointer;
-  background: #a8a8a8;
-  padding: 4px 4px 1.2em;
-  min-width: min(92vw, 30em);
-  border: 2px solid;
-  border-color: #fcfcfc #545454 #545454 #fcfcfc;
-  box-shadow: 8px 8px 0 rgb(0 0 0 / 0.45);
-  text-align: center;
-  font-size: max(14px, 2.6vh);
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: calc(var(--dot) * 8) calc(var(--dot) * 8) 0 rgb(0 0 0 / 0.45);
 }
-.splash .field {
-  margin: 0.7em auto 0;
-  width: 75%;
-  padding: 0.2em 0;
-  border: 2px solid;
-  border-color: #545454 #fcfcfc #fcfcfc #545454;
-  color: #fcfcfc;
-}
-.splash .green {
-  background: #00a800;
-}
-.splash .red {
-  background: #a80000;
-}
-.splash p {
-  margin: 0.9em 0 0;
-  color: #fcfcfc;
-  text-shadow: 1px 1px #000;
-}
-.splash p.big {
-  margin-top: 0.3em;
-  font-size: 1.2em;
-  color: #000;
-  text-shadow: none;
-  border-bottom: 3px double #545454;
-  display: inline-block;
+.splash img {
+  display: block;
+  width: min(92vw, calc(var(--dot) * 320));
+  height: auto;
+  image-rendering: pixelated;
 }
 
 /* 이야기 전화번호부: 청록 판 위에 회색 목록과 단추 */
@@ -455,51 +412,64 @@ body {
 .help-keys .gray { background: #545454; color: #fcfcfc; }
 .help-keys .lgreen { background: #54fc54; color: #000; }
 
-/* 이야기 5.0 아래 막대 */
+/* 이야기 5.3 아래 막대: 회색 바탕에 짙은 회색 글자, 칸 사이는 검은 줄과 흰 줄. 칸 너비는 5.3 화면 그대로(점 단위) */
 .status {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 1.8em;
+  height: var(--fs);
   display: flex;
-  align-items: stretch;
   background: #a8a8a8;
-  color: #000;
-  border-top: 2px solid #fcfcfc;
+  color: #575757;
+  font-size: var(--fs);
+  line-height: 1;
   white-space: nowrap;
   overflow: hidden;
 }
-.status span {
+.status > * {
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 0 0.8em;
-  border-right: 2px solid #545454;
-  box-shadow: 1px 0 #fcfcfc;
+  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  border-right: var(--dot) solid #000;
+  box-shadow: var(--dot) 0 #fff;
+  margin-right: var(--dot);
+}
+.status > :nth-child(1) { width: calc(var(--dot) * 83); }
+.status > :nth-child(2) { width: calc(var(--dot) * 47); gap: calc(var(--dot) * 3); }
+.status > :nth-child(3) { width: calc(var(--dot) * 95); }
+.status > :nth-child(4) { width: calc(var(--dot) * 111); }
+.status > :nth-child(5) { width: calc(var(--dot) * 135); }
+.status > :nth-child(6) { width: calc(var(--dot) * 95); }
+.status > .clock {
+  flex: 1;
+  justify-content: flex-end;
+  padding-right: calc(var(--dot) * 2);
+  border-right: 0;
+  box-shadow: none;
 }
 .status button {
   font: inherit;
   color: inherit;
   background: none;
-  border: 0;
-  border-right: 2px solid #545454;
-  box-shadow: 1px 0 #fcfcfc;
-  padding: 0 0.8em;
+  border-top: 0;
+  border-bottom: 0;
+  border-left: 0;
+  padding: 0;
   cursor: pointer;
 }
-.status .clock {
-  margin-left: auto;
-  border-right: 0;
-}
+/* 모뎀 불: 검은·흰 테두리 안의 초록 칸 */
 .status i {
-  width: 0.9em;
-  height: 0.9em;
-  background: #545454;
-  border: 1px solid #000;
+  width: calc(var(--dot) * 16);
+  height: calc(var(--dot) * 8);
+  background: #575757;
+  border: var(--dot) solid;
+  border-color: #000 #fff #fff #000;
 }
 .status i.on {
-  background: #54fc54;
+  background: #57ff57;
 }
 
 /* 스크롤백을 쓰지 않으므로 오른쪽 스크롤바(하얀 선)를 숨긴다 */

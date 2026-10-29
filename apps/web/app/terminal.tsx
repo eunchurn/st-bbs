@@ -15,15 +15,14 @@ const PHONE = "01410";
 const cols = 80;
 const rows = 24;
 const MAX_LINE = 500;
-const WON_PER_MIN = 20; // 과금 체험용 연출 값. 실제 당시 요금표가 아니다.
-// 글자 크기: 창 높이에 약 32줄이 들어갈 크기. 터미널 창은 가운데, 둘레는 이야기 5.0 사무실 그림이다.
-// 창이 좁으면 80칸이 들어가도록 더 줄인다(둥근모 반각 폭은 0.5em).
+// 글자 크기: 창 높이에 약 32줄이 들어갈 크기. 터미널 창은 가운데, 둘레는 이야기 5.3 사무실 그림이다.
+// 창이 좁으면 80칸이 들어가도록 더 줄인다(이야기 글꼴 반각 폭은 0.5em).
 const fontSize = () => Math.max(8, Math.min(32, Math.round(innerHeight / 32), Math.floor(innerWidth / (cols * 0.5))));
-// VGA 16색. 하이텔 화면의 파랑·초록·보라가 이 색이다.
+// 이야기 5.3 화면의 16색(에뮬레이터 화면에서 잰 값). 하이텔 화면의 파랑·초록·보라가 이 색이다.
 const VGA = {
-  background: "#0000a8", foreground: "#c0c0c0", cursor: "#c0c0c0",
-  black: "#000000", blue: "#0000a8", green: "#00a800", cyan: "#00a8a8", red: "#a80000", magenta: "#a800a8", yellow: "#a85400", white: "#a8a8a8",
-  brightBlack: "#545454", brightBlue: "#5454fc", brightGreen: "#54fc54", brightCyan: "#54fcfc", brightRed: "#fc5454", brightMagenta: "#fc54fc", brightYellow: "#fcfc54", brightWhite: "#fcfcfc",
+  background: "#0000a8", foreground: "#a8a8a8", cursor: "#a8a8a8",
+  black: "#000000", blue: "#0000a8", green: "#00a800", cyan: "#00a8a8", red: "#a80000", magenta: "#a800a8", yellow: "#a85700", white: "#a8a8a8",
+  brightBlack: "#575757", brightBlue: "#5757ff", brightGreen: "#57ff57", brightCyan: "#57ffff", brightRed: "#ff5757", brightMagenta: "#ff57ff", brightYellow: "#ffff57", brightWhite: "#ffffff",
 };
 
 type Msg = { t: "out"; d: string } | { t: "prompt"; d: string; secret?: boolean } | { t: "bye" };
@@ -41,8 +40,9 @@ function width(ch: string) {
   return wide ? 2 : 1;
 }
 
-function hms(sec: number) {
-  return [sec / 3600, (sec / 60) % 60, sec % 60].map((n) => String(Math.floor(n)).padStart(2, "0")).join(":");
+// 이야기 5.3의 연결 시간은 "0:00"처럼 분:초
+function mss(sec: number) {
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }
 
 type Live = { phase: "idle" | "dialing" | "online" | "offline"; since: number; hangul: boolean; rd: number };
@@ -161,7 +161,7 @@ export default function Terminal() {
       const [{ Terminal }, { Unicode11Addon }] = await Promise.all([
         import("@xterm/xterm"),
         import("@xterm/addon-unicode11"),
-        document.fonts.load("16px DungGeunMo"),
+        document.fonts.load("16px Iyagi"),
       ]);
       if (disposed || !el.current) return;
 
@@ -170,7 +170,7 @@ export default function Terminal() {
         rows,
         scrollback: 0,
         allowProposedApi: true,
-        fontFamily: "DungGeunMo, monospace",
+        fontFamily: "Iyagi, DungGeunMo, monospace",
         fontSize: fontSize(),
         cursorBlink: true,
         theme: VGA,
@@ -223,7 +223,7 @@ export default function Terminal() {
 
       const dial = async (sound: boolean) => {
         L.phase = "dialing";
-        t.write(`\x1b[2J\x1b[H AT &C1 B0 X3\r\n OK\r\n ATDT${PHONE}\r\n 전화 거는 중... (아무 키나 누르면 건너뜁니다)`);
+        t.write(`\x1b[2J\x1b[H AT&C1\\N3L3S11=60%A127%c1\\c1\r\n OK\r\n ATDT${PHONE}\r\n 전화 거는 중... (아무 키나 누르면 건너뜁니다)`);
         // AudioContext는 키를 누른 직후(사용자 동작 안)에 만들어야 소리가 난다
         const ctx = sound ? new AudioContext() : undefined;
         const raw = ctx && (await handshake);
@@ -287,7 +287,7 @@ export default function Terminal() {
   const online = L.phase === "online";
   return (
     <>
-      <Scene online={online} />
+      <Scene />
       <div className="stage" ref={stageRef}>
         {splash && <Splash onClose={close} />}
         {!splash && dir && <Directory onDial={dial} onHelp={() => setWin("help")} />}
@@ -328,7 +328,7 @@ export default function Terminal() {
               onClick={() => setMenu((v) => !v)}
               onDoubleClick={(e) => (e.stopPropagation(), hangupRef.current(), setDir(true), setMode("normal"))}
             />
-            <span>이야기 5.0 - 01410 하이텔</span>
+            <span>이야기 5.3 - 01410 하이텔</span>
             <button type="button" className="mm" aria-label="최소화" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()} onClick={() => setMode("min")}>
               ▼
             </button>
@@ -366,25 +366,28 @@ export default function Terminal() {
         {mode === "min" && !splash && !dir && (
           <button type="button" className="icon" onClick={() => setMode("normal")}>
             <span className="icon-img">이야기</span>
-            <span className="icon-label">이야기 5.0 - 하이텔</span>
+            <span className="icon-label">이야기 5.3 - 하이텔</span>
           </button>
         )}
       </div>
-      {/* 이야기 5.0의 아래 막대: 입력 모드, 모뎀 불(CD·RD), 연결 시간, 글자판, 통신 설정, 요금, 시계 */}
+      {/* 이야기 5.3의 아래 막대: 입력 모드, 모뎀 불(CD·RD), 연결 시간(끊겨 있으면 F1-도움말), 글자판, 통신 설정, 갈무리, 시계 */}
       <div className="status">
         <span>{L.hangul ? "<한글>-2" : "<영문>-2"}</span>
         <span>
           <i className={online ? "on" : ""} />
           <i className={online && now - L.rd < 300 ? "on" : ""} />
         </span>
-        <span>연결 {hms(sec)}</span>
-        <button type="button" onClick={() => setWin((w) => (w === "help" ? null : "help"))}>
-          F1-도움말
-        </button>
+        {online ? (
+          <span>연결 {mss(sec)}</span>
+        ) : (
+          <button type="button" onClick={() => setWin((w) => (w === "help" ? null : "help"))}>
+            F1-도움말
+          </button>
+        )}
         <span>KS5601 완성</span>
         <span>1- 14400-N-8-1</span>
-        <span>요금 {(Math.ceil(sec / 60) * WON_PER_MIN).toLocaleString()}원</span>
-        <span className="clock">{now ? new Date(now).toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul" }) : ""}</span>
+        <span>갈무리 끝</span>
+        <span className="clock">{now ? new Date(now).toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul" }).replace(/^0/, "") : ""}</span>
       </div>
     </>
   );
