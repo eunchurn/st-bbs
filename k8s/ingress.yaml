@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: st-bbs-server
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # 대화실에 오래 머무는 WebSocket이 끊기지 않게
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: bbs.sophonz.ai
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: st-bbs-server
+                port:
+                  number: 80
+  tls:
+    - hosts: [bbs.sophonz.ai]
+      secretName: bbs-sophonz-ai-tls

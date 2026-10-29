@@ -28,5 +28,13 @@ bun run build
 
 ## 배포
 
-- 웹: Vercel 프로젝트의 Root Directory를 `apps/web`으로 두고 `NEXT_PUBLIC_BBS_URL=wss://<서버 호스트>/ws`를 넣는다.
-- 서버: `docker build -t st-bbs-server apps/server`. SQLite라서 레플리카는 1개, `/data`에 볼륨을 붙인다. `ALLOWED_ORIGINS`에 Vercel 도메인을 넣는다. 헬스체크는 `GET /healthz`.
+- 웹: Vercel 프로젝트 `st-bbs`(팀 sophonz, Root Directory `apps/web`). master에 푸시하면 배포된다. `NEXT_PUBLIC_BBS_URL=wss://bbs.sophonz.ai/ws`.
+- 서버 이미지: `apps/server`가 바뀌어 master에 푸시되면 `.github/workflows/server.yml`이 테스트 후 `ghcr.io/eunchurn/st-bbs-server:<sha>`, `:latest`를 amd64·arm64로 올린다.
+- 서버 배포: `k8s/`(ns `st-bbs`, `bbs.sophonz.ai`, kube context `oci@afextwin`). 이미지 태그는 `k8s/kustomization.yaml`의 `newTag`를 커밋 sha로 바꾼다.
+
+```sh
+kubectl --context oci@afextwin diff -k k8s
+kubectl --context oci@afextwin apply -k k8s
+```
+
+SQLite라서 레플리카는 1개(`Recreate`)이고 데이터는 PVC `st-bbs-data`(`openebs-lvm`)의 `/data/bbs.db`에 있다. Vercel 프로덕션 도메인을 바꾸면 `deployment.yaml`의 `ALLOWED_ORIGINS`도 바꾼다.

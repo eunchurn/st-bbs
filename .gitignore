@@ -5,3 +5,5 @@ node_modules
 *.db-*
 .env*.local
 next-env.d.ts
+.vercel
+.env*

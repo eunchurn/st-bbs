@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: st-bbs-server
+  labels:
+    app: st-bbs-server
+spec:
+  replicas: 1 # SQLite 파일 하나를 쓰므로 하나만
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: st-bbs-server
+  template:
+    metadata:
+      labels:
+        app: st-bbs-server
+    spec:
+      securityContext:
+        fsGroup: 1000 # 이미지의 bun 사용자
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  # 디스크 fsync가 다른 노드보다 수십 배 느리다(sophonz-labs/CLAUDE.md)
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [exp-worker-5.local]
+      containers:
+        - name: server
+          image: ghcr.io/eunchurn/st-bbs-server
+          ports:
+            - containerPort: 8023
+          env:
+            - name: ALLOWED_ORIGINS
+              value: https://st-bbs.vercel.app
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8023 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8023 }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: st-bbs-data
