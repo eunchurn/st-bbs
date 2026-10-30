@@ -36,6 +36,9 @@ const MAX_LINE = 500;
 const MAX_BODY_LINES = 200; // 피씨월드 1991.9의 게시글 길이 제한
 const MAX_MEMO = 200;
 const CHAT_WARN_MS = 25 * 60_000;
+const USER_ROOMS = "5"; // 대화실 [분류]의 '함께 만드는 대화실'
+const MAX_ROOMS = 14; // 한 화면에 들어가는 만큼
+const TOPIC_CELLS = 40;
 const ID_RE = /^[a-z][a-z0-9]{2,7}$/;
 const SERVICE = "hitel";
 // 내용은 하이텔처럼 80칸 폭이다. 화면이 더 넓으면 가운데 둔다. 마지막 줄은 브라우저의 상태 줄.
@@ -391,6 +394,9 @@ const NOTICES: { title: string; date: string; body: string[] }[] = [
 ];
 
 const online = new Set<Session>();
+type ChatRoom = { id: number; topic: string; owner: string };
+const roomKey = (id: number) => `u:${id}`;
+const userRoomPeople = () => [...rooms].reduce((n, [k, p]) => n + (k.startsWith("u:") ? p.size : 0), 0);
 const rooms = new Map<string, Set<Session>>(); // 대화방 번호 → 참가자
 
 // 터미널에서 차지하는 칸 수. 한글·한자·전각 문자는 2칸. 색 바꾸는 코드는 0칸.
@@ -1285,7 +1291,7 @@ export class Session {
       let out = this.at(row, col) + B + "┌" + "─".repeat(left) + HL + sec.title + B + "─".repeat(w - 2 - left - cells(sec.title)) + "┐";
       for (let i = 0; i < 6; i++) {
         const it = sec.items[i];
-        const n = it ? (rooms.get(it.no)?.size ?? 0) : 0;
+        const n = !it ? 0 : it.no === USER_ROOMS ? userRoomPeople() : (rooms.get(it.no)?.size ?? 0);
         const text = it ? pad(` ${it.no}.${it.name}`, n ? 20 : 24) + (n ? HL + pad(`(${n})`, 4) : "") : " ".repeat(24);
         out += this.at(row + 1 + i, col) + B + "│" + RS + text + B + "│";
       }
@@ -1304,6 +1310,7 @@ export class Session {
       const c = line.trim().toLowerCase();
       if (!c) return this.chatList();
       if (c === "p") return this.main();
+      if (c === USER_ROOMS) return this.userRooms();
       const room = ROOMS.find((r) => r.no === c);
       if (room) return this.enterChat(room);
       if (c === CHAT_GUIDE) return this.chatList(" 참가자는 /W, 나가기는 /Q. 호칭은 '님'. 25분이 지나면 쉬어 가라고 알려 드립니다.");
@@ -1314,6 +1321,66 @@ export class Session {
       if (this.nav(c)) return;
       this.chatList(" 그런 번호의 대화실은 없습니다.");
     });
+  }
+
+  // 함께 만드는 대화실: 이용자가 주제만 정해 여는 방. 방장은 방을 없앨 수 있다.
+  private userRooms(notice = "") {
+    const list = this.db.query("SELECT id, topic, owner FROM chat_rooms ORDER BY id LIMIT ?").all(MAX_ROOMS) as ChatRoom[];
+    const rows = list.map((r, i) => {
+      const n = rooms.get(roomKey(r.id))?.size ?? 0;
+      return ` ${String(i + 1).padStart(4)}   ${pad(r.topic, TOPIC_CELLS + 2)}${pad(r.owner, 10)}${n ? HL + `${n}명` + RS : "  -"}`;
+    });
+    this.draw(
+      [
+        this.header("CHATTING", "함께 만드는 대화실"),
+        this.head(4, 2, 76, ` 번호   ${pad("대 화 주 제", TOPIC_CELLS + 2)}${pad("방장", 10)}인원`, CYAN),
+        this.lines(6, 1, rows.length ? rows : ["  열린 대화방이 없습니다. 개설(O)로 처음 방을 열어 보세요."]),
+        this.at(20, 1) + notice,
+        this.at(21, 1) + " 들어가기(번호) 개설(O) 폐쇄(D 번호) 이전(P) 처음(T) 종료(X)",
+      ].join(""),
+      22,
+    );
+    const back = () => this.userRooms();
+    this.ask(" >> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (!c) return this.userRooms();
+      if (c === "p") return this.chatList();
+      if (c === "o") return this.openRoom();
+      const del = c.match(/^d\s*(\d+)$/);
+      if (del) return this.closeRoom(list[Number(del[1]) - 1]);
+      if (/^\d+$/.test(c)) {
+        const r = list[Number(c) - 1];
+        return r ? this.enterChat({ no: roomKey(r.id), name: r.topic }, back) : this.userRooms(" 그런 번호의 대화방은 없습니다.");
+      }
+      if (this.nav(c)) return;
+      this.userRooms(" 잘못된 명령입니다.");
+    });
+  }
+
+  private openRoom() {
+    const n = (this.db.query("SELECT count(*) AS n FROM chat_rooms").get() as { n: number }).n;
+    if (n >= MAX_ROOMS) return this.userRooms(" 대화방이 꽉 찼습니다. 빈 방이 생기면 다시 열어 주세요.");
+    this.ask(`  대화 주제(한글 ${TOPIC_CELLS / 2}자까지, 엔터는 취소) : `, (line) => {
+      const topic = pad(clean(line).trim(), TOPIC_CELLS).trimEnd();
+      if (!topic) return this.userRooms(" 대화방 개설을 취소했습니다.");
+      const { lastInsertRowid } = this.db
+        .query("INSERT INTO chat_rooms (topic, owner, created_at) VALUES (?, ?, ?)")
+        .run(topic, this.user, Date.now());
+      this.enterChat({ no: roomKey(Number(lastInsertRowid)), name: topic }, () => this.userRooms());
+    });
+  }
+
+  private closeRoom(r?: ChatRoom) {
+    if (!r) return this.userRooms(" 그런 번호의 대화방은 없습니다.");
+    if (r.owner !== this.user) return this.userRooms(" 방장만 대화방을 없앨 수 있습니다.");
+    this.db.query("DELETE FROM chat_rooms WHERE id = ?").run(r.id);
+    // 안에 있던 사람은 알리고 목록으로 돌려보낸다
+    for (const s of [...(rooms.get(roomKey(r.id)) ?? [])]) {
+      s.leaveChat(true);
+      s.userRooms(` *** 방장이 '${r.topic}' 방을 없앴습니다.`);
+    }
+    rooms.delete(roomKey(r.id));
+    this.userRooms(` '${r.topic}' 방을 없앴습니다.`);
   }
 
   private enterChat(room: { no: string; name: string }, back = () => this.chatList()) {
@@ -1346,11 +1413,11 @@ export class Session {
     for (const s of rooms.get(this.room?.no ?? "") ?? []) if (s !== except) s.print(msg);
   }
 
-  private leaveChat() {
+  private leaveChat(quiet = false) {
     const people = this.room && rooms.get(this.room.no);
     if (!people?.delete(this)) return;
     clearTimeout(this.chatTimer);
-    this.broadcast(` *** ${this.user}님이 나가셨습니다. (지금 ${people.size}명)`);
+    if (!quiet) this.broadcast(` *** ${this.user}님이 나가셨습니다. (지금 ${people.size}명)`);
     if (!people.size) rooms.delete(this.room!.no);
     this.room = undefined;
   }

@@ -33,6 +33,12 @@ export function openDb(path = process.env.DB_PATH ?? "bbs.db") {
       read_at INTEGER
     );
     CREATE INDEX IF NOT EXISTS memos_recipient ON memos (recipient, id);
+    CREATE TABLE IF NOT EXISTS chat_rooms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      topic TEXT NOT NULL,
+      owner TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS post_likes (
       no INTEGER NOT NULL,
       user TEXT NOT NULL,

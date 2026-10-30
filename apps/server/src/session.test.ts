@@ -268,3 +268,26 @@ test("큰마을 목록은 가입 때 넣은 이름과 ID를 같이 보여 준다
   expect(t).toMatch(/바다소년\s+sea01\s+/);
   a.s.end();
 });
+
+test("대화방은 주제만 넣어 열고, 방장만 없앤다", async () => {
+  const db = openDb(":memory:");
+  seed(db);
+  const a = await client(db);
+  const b = await client(db);
+  await type(a.s, "hitel", "owner1", "pass1", "pass1", "", "13", "5");
+  expect(a.text()).toContain("서태지와 아이들 컴백 기다리는 방"); // 90년대 방이 미리 있다
+  await type(a.s, "o", "새벽에 듣는 015B");
+  expect(a.text()).toContain("새벽에 듣는 015B");
+  await type(b.s, "hitel", "guest1", "pass1", "pass1", "", "13", "5", "7");
+  expect(a.text()).toContain("guest1님이 들어오셨습니다. (지금 2명)");
+  await type(b.s, "/q", "d 7");
+  expect(b.text()).toContain("방장만 대화방을 없앨 수 있습니다");
+  await type(b.s, "7", "/q", "d 1");
+  expect(b.text()).toContain("방장만 대화방을 없앨 수 있습니다"); // 운영자 방도 못 없앤다
+  await type(b.s, "7");
+  await type(a.s, "/q", "d 7");
+  expect(b.text()).toContain("방장이 '새벽에 듣는 015B' 방을 없앴습니다");
+  expect((db.query("SELECT count(*) AS n FROM chat_rooms").get() as { n: number }).n).toBe(6);
+  a.s.end();
+  b.s.end();
+});

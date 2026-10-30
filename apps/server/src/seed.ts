@@ -17,7 +17,22 @@ const listBody = (from: string) =>
 
 // 옛 PC통신 글(ktsmemo.cafe24.com 오래된 자료). 글마다 맞는 게시판에 넣고, 끝에 원문 주소를 둔다.
 // 같은 게시판에 같은 제목이 이미 있으면 넣지 않으므로 서버를 다시 띄워도 한 번만 들어간다.
+// 함께 만드는 대화실에 처음부터 있는 방. 방장이 운영자라 이용자는 없애지 못하고, 없으면 다시 넣는다.
+const CHAT_ROOMS = [
+  "서태지와 아이들 컴백 기다리는 방",
+  "농구대잔치 연고전 응원방",
+  "새벽 3시 올빼미들 모여라",
+  "삐삐 음성사서함 사연 나눠요",
+  "스트리트 파이터2 고수만",
+  "X세대의 고민 상담실",
+];
+export const SYSOP = "운영자"; // 한글이라 이용자 ID와 겹치지 않는다
+
 export function seed(db: Database) {
+  const room = db.query("SELECT 1 FROM chat_rooms WHERE owner = ? AND topic = ?");
+  for (const t of CHAT_ROOMS)
+    if (!room.get(SYSOP, t)) db.query("INSERT INTO chat_rooms (topic, owner, created_at) VALUES (?, ?, ?)").run(t, SYSOP, Date.now());
+
   const has = db.query("SELECT 1 FROM posts WHERE board = ? AND title = ?");
   const add = db.query("INSERT INTO posts (board, author, title, body, created_at, views) VALUES (?, ?, ?, ?, ?, ?)");
   for (const p of oldfiles) if (!has.get(p.board, p.title)) add.run(p.board, p.author, p.title, p.body, Date.now(), 0);
