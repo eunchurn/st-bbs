@@ -1324,7 +1324,7 @@ export class Session {
     this.room = room;
     this.draw(this.header("CHATTING", room.name, `지금 ${people.size}명`), 4);
     this.print(" 들어왔습니다. '님' 문화를 지켜 주세요.   참가자(/W) 나가기(/Q)");
-    this.broadcast(` *** ${this.user}님이 들어오셨습니다.`, this);
+    this.broadcast(` *** ${this.user}님이 들어오셨습니다. (지금 ${people.size}명)`, this); // 머리 줄의 사람 수는 들어올 때 한 번만 그려진다
     this.chatTimer = setTimeout(() => this.print(" *** 대화실에 25분째 계십니다. 잠시 쉬어 가세요."), CHAT_WARN_MS);
     this.chatPrompt();
   }
@@ -1350,7 +1350,7 @@ export class Session {
     const people = this.room && rooms.get(this.room.no);
     if (!people?.delete(this)) return;
     clearTimeout(this.chatTimer);
-    this.broadcast(` *** ${this.user}님이 나가셨습니다.`);
+    this.broadcast(` *** ${this.user}님이 나가셨습니다. (지금 ${people.size}명)`);
     if (!people.size) rooms.delete(this.room!.no);
     this.room = undefined;
   }

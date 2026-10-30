@@ -57,6 +57,7 @@ function toggleFullscreen() {
 
 export default function Terminal() {
   const el = useRef<HTMLDivElement>(null);
+  const lineRef = useRef<HTMLInputElement>(null);
   // 터미널 쪽이 바꾸고 상태 막대와 그림이 읽는다. 0.25초마다 다시 그린다(RD 불이 깜빡이게).
   const live = useRef<Live>({ phase: "idle", since: 0, hangul: false, rd: 0, until: 0 });
   // 시계는 서버 렌더와 어긋나지 않게 브라우저에서만 채운다
@@ -197,7 +198,13 @@ export default function Terminal() {
       t.loadAddon(new Unicode11Addon());
       t.unicode.activeVersion = "11";
       t.open(el.current);
-      t.focus();
+      // 전화기 글자판은 xterm이 매번 비우는 숨은 칸에서 한글을 조합하지 못해 자모가 풀린다. 진짜 입력 칸에서 받는다.
+      const line = matchMedia("(pointer: coarse)").matches ? lineRef.current : null;
+      if (line) {
+        t.options.disableStdin = true;
+        el.current.addEventListener("click", () => line.focus());
+        line.focus();
+      } else t.focus();
       addEventListener("resize", fit);
 
       let prompt = "";
@@ -232,6 +239,7 @@ export default function Terminal() {
           else if (m.t === "prompt") {
             prompt = m.d;
             secret = !!m.secret;
+            if (line) line.type = secret ? "password" : "text";
             redraw();
           } else hangup(" NO CARRIER");
         };
@@ -270,7 +278,22 @@ export default function Terminal() {
       };
       dialRef.current = (sound) => L.phase !== "dialing" && L.phase !== "online" && dial(sound);
 
-      t.onData((d) => {
+      if (line) {
+        line.oninput = () => {
+          if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(line.value)) L.hangul = true;
+          if (L.phase !== "online") return void (line.value = "");
+          buf = line.value.slice(0, MAX_LINE);
+          redraw();
+        };
+        line.form!.onsubmit = (e) => {
+          e.preventDefault();
+          if (L.phase === "online") buf = line.value.slice(0, MAX_LINE);
+          line.value = "";
+          keys("\r"); // 엔터는 글쇠로 친 것과 같은 길로 보낸다
+        };
+      }
+
+      const keys = (d: string) => {
         if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(d)) L.hangul = true; // 마지막에 친 글자로 <한글>/<영문>을 정한다
         else if (/[a-zA-Z]/.test(d)) L.hangul = false;
         if (L.phase === "dialing") return skip();
@@ -296,7 +319,8 @@ export default function Terminal() {
             t.write(secret ? "*" : ch);
           }
         }
-      });
+      };
+      t.onData(keys);
     })();
 
     return () => {
@@ -388,6 +412,9 @@ export default function Terminal() {
             )}
           </div>
           <div className="term" ref={el} />
+          <form className="line">
+            <input ref={lineRef} enterKeyHint="send" autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} aria-label="입력" />
+          </form>
         </div>
         {mode === "min" && !splash && !dir && (
           <button type="button" className="icon" onClick={() => setMode("normal")}>

@@ -43,10 +43,11 @@ test("대화실 메시지는 다른 참가자에게 간다", async () => {
   const b = await client(db);
   await type(a.s, "hitel", "park1", "pass1", "pass1", "", "13", "1");
   await type(b.s, "hitel", "choi1", "pass1", "pass1", "", "go chat", "1");
+  expect(a.text()).toContain("choi1님이 들어오셨습니다. (지금 2명)"); // 먼저 온 사람도 늘어난 수를 본다
   await type(a.s, "안녕");
   expect(b.text()).toContain("[park1] 안녕");
   b.s.end();
-  expect(a.text()).toContain("choi1님이 나가셨습니다");
+  expect(a.text()).toContain("choi1님이 나가셨습니다. (지금 1명)");
   a.s.end();
 });
 
