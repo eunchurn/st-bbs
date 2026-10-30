@@ -41,8 +41,8 @@ test("대화실 메시지는 다른 참가자에게 간다", async () => {
   const db = openDb(":memory:");
   const a = await client(db);
   const b = await client(db);
-  await type(a.s, "hitel", "park1", "pass1", "pass1", "", "13", "1");
-  await type(b.s, "hitel", "choi1", "pass1", "pass1", "", "go chat", "1");
+  await type(a.s, "hitel", "park1", "pass1", "pass1", "", "13", "1", "o", "같이 놀아요");
+  await type(b.s, "hitel", "choi1", "pass1", "pass1", "", "go chat", "1", "1");
   expect(a.text()).toContain("choi1님이 들어오셨습니다. (지금 2명)"); // 먼저 온 사람도 늘어난 수를 본다
   await type(a.s, "안녕");
   expect(b.text()).toContain("[park1] 안녕");
@@ -136,13 +136,13 @@ test("대화실은 방마다 따로다", async () => {
   const db = openDb(":memory:");
   const a = await client(db);
   const b = await client(db);
-  await type(a.s, "hitel", "room1", "pass1", "pass1", "", "13", "21");
+  await type(a.s, "hitel", "room1", "pass1", "pass1", "", "13", "21", "o", "서울 번개");
   await type(b.s, "hitel", "room2", "pass1", "pass1", "", "13");
   expect(b.text()).toContain("21.서울특별시");
-  await type(b.s, "22");
+  await type(b.s, "22", "o", "인천 번개");
   await type(a.s, "서울 분 계세요");
   expect(b.text()).not.toContain("서울 분 계세요");
-  await type(b.s, "/q", "21");
+  await type(b.s, "/q", "p", "21", "1");
   await type(a.s, "반가워요");
   expect(b.text()).toContain("[room1] 반가워요");
   a.s.end();
@@ -269,25 +269,44 @@ test("큰마을 목록은 가입 때 넣은 이름과 ID를 같이 보여 준다
   a.s.end();
 });
 
-test("대화방은 주제만 넣어 열고, 방장만 없앤다", async () => {
+test("대화실 분류마다 채팅방을 제목만 넣어 열고, 방장만 없앤다", async () => {
   const db = openDb(":memory:");
   seed(db);
   const a = await client(db);
   const b = await client(db);
-  await type(a.s, "hitel", "owner1", "pass1", "pass1", "", "13", "5");
-  expect(a.text()).toContain("서태지와 아이들 컴백 기다리는 방"); // 90년대 방이 미리 있다
+  await type(a.s, "hitel", "owner1", "pass1", "pass1", "", "13", "44");
+  expect(a.text()).toContain("농구대잔치 연고전 응원방"); // 90년대 방이 미리 있다
   await type(a.s, "o", "새벽에 듣는 015B");
-  expect(a.text()).toContain("새벽에 듣는 015B");
-  await type(b.s, "hitel", "guest1", "pass1", "pass1", "", "13", "5", "7");
+  await type(b.s, "hitel", "guest1", "pass1", "pass1", "", "13");
+  expect(b.text()).toContain("44.대학생 대화실   \x1b[1;33m(1)"); // 분류 옆에 그 안의 사람 수
+  await type(b.s, "44", "2");
   expect(a.text()).toContain("guest1님이 들어오셨습니다. (지금 2명)");
-  await type(b.s, "/q", "d 7");
-  expect(b.text()).toContain("방장만 대화방을 없앨 수 있습니다");
-  await type(b.s, "7", "/q", "d 1");
-  expect(b.text()).toContain("방장만 대화방을 없앨 수 있습니다"); // 운영자 방도 못 없앤다
-  await type(b.s, "7");
-  await type(a.s, "/q", "d 7");
+  await type(b.s, "/q", "d 2");
+  expect(b.text()).toContain("방장만 채팅방을 없앨 수 있습니다");
+  await type(b.s, "d 1");
+  expect(b.text().split("방장만 채팅방을 없앨 수 있습니다").length).toBe(3); // 운영자 방도 못 없앤다
+  await type(b.s, "2");
+  await type(a.s, "/q", "d 2");
   expect(b.text()).toContain("방장이 '새벽에 듣는 015B' 방을 없앴습니다");
-  expect((db.query("SELECT count(*) AS n FROM chat_rooms").get() as { n: number }).n).toBe(6);
+  await type(a.s, "p", "1");
+  const screen = a.text().split("\x1b[2J").at(-1)!;
+  expect(screen).toContain("비 오는 날 015B 들으며");
+  expect(screen).not.toContain("농구대잔치"); // 다른 분류의 방은 안 보인다
+  expect((db.query("SELECT count(*) AS n FROM chat_rooms WHERE category = '44'").get() as { n: number }).n).toBe(1);
   a.s.end();
   b.s.end();
+});
+
+test("예전 채팅방은 분류 5로 옮기고, 운영자 방은 제 분류로 간다", () => {
+  const db = openDb(":memory:");
+  db.exec("DROP TABLE chat_rooms; CREATE TABLE chat_rooms (id INTEGER PRIMARY KEY AUTOINCREMENT, topic TEXT NOT NULL, owner TEXT NOT NULL, created_at INTEGER NOT NULL)");
+  db.exec("INSERT INTO chat_rooms (topic, owner, created_at) VALUES ('내 방', 'kim01', 0), ('농구대잔치 연고전 응원방', '운영자', 0), ('없어진 방', '운영자', 0)");
+  const path = `/tmp/st-bbs-migrate-${Date.now()}.db`;
+  db.exec(`VACUUM INTO '${path}'`);
+  const db2 = openDb(path);
+  seed(db2);
+  const q = (t: string) => db2.query("SELECT category FROM chat_rooms WHERE topic = ?").get(t) as { category: string } | null;
+  expect(q("내 방")?.category).toBe("5");
+  expect(q("농구대잔치 연고전 응원방")?.category).toBe("44");
+  expect(q("없어진 방")).toBeNull();
 });

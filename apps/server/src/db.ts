@@ -51,5 +51,8 @@ export function openDb(path = process.env.DB_PATH ?? "bbs.db") {
   if (!db.query("SELECT 1 FROM pragma_table_info('users') WHERE name = 'last_seen'").get())
     db.exec("ALTER TABLE users ADD COLUMN last_seen INTEGER");
   if (!db.query("SELECT 1 FROM pragma_table_info('users') WHERE name = 'name'").get()) db.exec("ALTER TABLE users ADD COLUMN name TEXT");
+  // 채팅방 분류는 나중에 붙었다. 그 전 방들은 '함께 만드는 대화실'(5)에 있었다.
+  if (!db.query("SELECT 1 FROM pragma_table_info('chat_rooms') WHERE name = 'category'").get())
+    db.exec("ALTER TABLE chat_rooms ADD COLUMN category TEXT NOT NULL DEFAULT '5'");
   return db;
 }
