@@ -23,6 +23,15 @@ body {
   --fs: max(16px, calc(100vh / 32));
   --dot: calc(var(--fs) / 16);
 }
+/* 글자 크기를 이야기 글꼴 한 점(16px)의 정수 배로. 레티나는 8px이 16점이라 8px 단위 */
+:root {
+  --crisp: max(16px, round(down, 100vh / 32, 16px));
+}
+@media (min-resolution: 2dppx) {
+  :root {
+    --crisp: max(16px, round(down, 100vh / 32, 8px));
+  }
+}
 
 /* 이야기 5.3 사무실 그림(640x464). 점이 뭉개지지 않게 늘린다 */
 /* 640x464 그림을 화면 안에 다 들어오게 85%로 줄여 가운데 둔다. --u는 그림의 한 점.
@@ -357,6 +366,8 @@ body {
   border-color: #fcfcfc #545454 #545454 #fcfcfc;
   box-shadow: 8px 8px 0 rgb(0 0 0 / 0.45);
   font-size: max(13px, 2.3vh);
+  /* 이야기 글꼴은 16점 비트맵이라 화면 점의 정수 배일 때만 또렷하다. 좁은 화면은 들어가는 게 먼저다 */
+  font-size: max(13px, min(var(--crisp), 94vw / 40));
 }
 .dir-head,
 .dir-list li {
