@@ -339,3 +339,14 @@ test("게임/바둑(16)에서 퀴즈방에 들어가 다섯 문제를 푼다", a
   expect(a.text().split("\x1b[2J").at(-1)).toContain("게 임 / 바 둑");
   a.s.end();
 });
+
+test("go liter: 연재란은 읽기만, 감상란에는 쓴다", async () => {
+  const a = await client();
+  await type(a.s, "hitel", "lt001", "pass1", "pass1", "", "go liter");
+  expect(a.text()).toContain("하이텔문학관");
+  await type(a.s, "2", "w");
+  expect(a.text()).toContain("연재란은 읽기만 합니다");
+  await type(a.s, "p", "4", "w", "잘 읽었습니다", "다음 편 기다려요", "/s");
+  expect((a.db.query("SELECT board FROM posts WHERE title = ?").get("잘 읽었습니다") as { board: string }).board).toBe("liter:talk");
+  a.s.end();
+});

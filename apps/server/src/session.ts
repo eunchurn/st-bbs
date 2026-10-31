@@ -30,7 +30,8 @@ type Club = {
 };
 type Small = { go: string; title: string; clubs: Club[] };
 type Section = { title: string; items: { no: string; name: string }[] };
-type Board = { key: string; code: string; title: string; back: () => void; canWrite: () => boolean };
+// denied: 글을 못 쓸 때 알림(없으면 동호회 가입 안내)
+type Board = { key: string; code: string; title: string; back: () => void; canWrite: () => boolean; denied?: string };
 
 const MAX_LINE = 500;
 const MAX_BODY_LINES = 200; // 피씨월드 1991.9의 게시글 길이 제한
@@ -86,6 +87,7 @@ const SPECIAL: Item[] = [
 const HIDDEN: Item[] = [
   { no: "small", go: "small", name: "소모임" },
   { no: "quiz", go: "quiz", name: "퀴즈방" },
+  { no: "liter", go: "liter", name: "하이텔문학관" },
 ];
 const MENU = [...COMM, ...CONTENTS, ...SPECIAL, ...HIDDEN];
 // 첫 화면 명령 줄의 짧은 이름
@@ -135,6 +137,14 @@ const QUIZ: [string, string[], number][] = [
   ["'스타크래프트'가 나온 해는?", ["1994", "1996", "1998", "2000"], 3],
 ];
 const QUIZ_ROUND = 5;
+
+// 하이텔문학관(go liter). 게시판 키는 liter:<key>. 연재 글은 seed가 넣고, 이용자는 감상란에만 쓴다.
+const LITER: { no: string; key: string; name: string; open?: boolean }[] = [
+  { no: "1", key: "notice", name: "알림" },
+  { no: "2", key: "novel", name: "장편 연재란" },
+  { no: "3", key: "short", name: "중단편란" },
+  { no: "4", key: "talk", name: "독자 감상란", open: true },
+];
 
 const SMALLS: Small[] = [
   {
@@ -409,6 +419,7 @@ const NOTICES: { title: string; date: string; body: string[] }[] = [
   { title: "자료광장 분류 안내..GO DATA", date: "10/29", body: ["게임, 유틸리티, 데이터, 테마 자료실로 나뉩니다.", "파일 대신 글로 자료를 소개합니다."] },
   { title: "대화실 개편 - 지역별/우리끼리 대화실..GO CHAT", date: "10/29", body: ["대화실이 여러 방으로 나뉘었습니다.", "참가자는 /W, 나가기는 /Q 입니다."] },
   { title: "글쓰기 안내 - 200행까지, /s 로 저장", date: "10/29", body: ["글은 200행까지 쓸 수 있습니다.", "/s 저장, /a 취소."] },
+  { title: "하이텔문학관 개관 - PC통신 연재 소설..GO LITER", date: "10/31", body: ["PC통신에 연재되던 소설을 모아 읽는 곳입니다.", "감상은 독자 감상란에 남겨 주세요."] },
 ];
 
 const online = new Set<Session>();
@@ -798,6 +809,7 @@ export class Session {
     if (item.go === "small") return this.smallCats();
     if (item.go === "game") return this.gameMenu();
     if (item.go === "quiz") return this.quiz();
+    if (item.go === "liter") return this.liter();
     if (item.go === "data") return this.dataList();
     if (item.go === "memo") return this.memoList();
     this.main(` [${item.name}] 준비 중인 메뉴입니다.`);
@@ -863,7 +875,7 @@ export class Session {
       const c = line.trim().toLowerCase();
       if (!c) return this.boardList();
       if (/^\d+$/.test(c)) return this.readPost(Number(c));
-      if (c === "w") return b.canWrite() ? this.writeTitle() : this.boardList(this.page, " 동호회에 가입해야 글을 쓸 수 있습니다. (동호회 첫 화면에서 j)");
+      if (c === "w") return b.canWrite() ? this.writeTitle() : this.boardList(this.page, b.denied ?? " 동호회에 가입해야 글을 쓸 수 있습니다. (동호회 첫 화면에서 j)");
       if (c === "n") return this.boardList(this.page + 1, this.page + 1 < pages ? "" : " 마지막 쪽입니다.");
       if (c === "b") return this.boardList(this.page - 1, this.page > 0 ? "" : " 첫 쪽입니다.");
       if (c === "p") return b.back();
@@ -1148,6 +1160,45 @@ export class Session {
       ].join(""),
       next + 4,
     ];
+  }
+
+  // ---- 하이텔문학관 ----
+
+  private liter(notice = "") {
+    const count = this.db.query("SELECT count(*) AS n FROM posts WHERE board = ?");
+    const rows = LITER.map((b) => ` ${b.no}. ${pad(b.name, 20)}${String((count.get(`liter:${b.key}`) as { n: number }).n).padStart(4)}편`);
+    const [list, next] = this.box(8, 16, 50, ["", ...rows, ""]);
+    this.draw(
+      [
+        this.header("LITER", "하이텔문학관"),
+        this.at(4, 4) + "PC통신에 연재되던 소설을 모아 읽는 곳입니다.",
+        this.at(5, 4) + "감상은 독자 감상란에 남겨 주세요.",
+        this.head(7, 16, 50, "문 학 관", PURPLE),
+        list,
+        this.at(next + 1, 1) + notice,
+        this.at(next + 3, 1) + " 들어가기(번호) 이전(P) 처음(T) 종료(X)",
+      ].join(""),
+      next + 4,
+    );
+    this.ask(" >> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (!c) return this.liter();
+      if (c === "p") return this.main();
+      const b = LITER.find((x) => x.no === c);
+      if (b) {
+        this.board = {
+          key: `liter:${b.key}`,
+          code: "LITER",
+          title: `하이텔문학관 [${b.name}]`,
+          back: () => this.liter(),
+          canWrite: () => !!b.open,
+          denied: " 연재란은 읽기만 합니다. 감상은 독자 감상란(4)에 남겨 주세요.",
+        };
+        return this.boardList(0);
+      }
+      if (this.nav(c)) return;
+      this.liter(" 그런 번호는 없습니다.");
+    });
   }
 
   // ---- 게임/바둑 ----
