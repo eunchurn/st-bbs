@@ -25,17 +25,23 @@ body {
 }
 
 /* 이야기 5.3 사무실 그림(640x464). 점이 뭉개지지 않게 늘린다 */
+/* 640x464 그림을 화면 안에 다 들어오게 85%로 줄여 가운데 둔다. --u는 그림의 한 점.
+   둘레는 그림을 이어 칠한다: 228째 줄까지 벽(#5757ff), 검은 걸레받이 한 줄, 그 밑은 바닥(#0000a8). */
 .scene {
+  --u: calc(min(100vw, 100vh * 640 / 464) * 0.85 / 640);
+  --top: calc((100vh - var(--u) * 464) / 2);
   position: fixed;
   inset: 0;
   overflow: hidden;
-  background: #0000a8;
+  background: linear-gradient(
+    #5757ff calc(var(--top) + var(--u) * 228),
+    #000 0 calc(var(--top) + var(--u) * 229),
+    #0000a8 0
+  );
 }
-/* 640x464 그림을 화면에 꽉 차게(cover, 위 가운데). --u는 그림의 한 점 */
 .office {
-  --u: calc(max(100vw, 100vh * 640 / 464) / 640);
   position: absolute;
-  top: 0;
+  top: var(--top);
   left: 50%;
   width: calc(var(--u) * 640);
   height: calc(var(--u) * 464);
