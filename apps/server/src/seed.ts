@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import artmedia from "./seed/artmedia.json";
+import computer from "./seed/computer.json";
 import djmon from "./seed/djmon.json";
 import mmc from "./seed/mmc.json";
 import oldfiles from "./seed/oldfiles.json";
@@ -54,4 +55,8 @@ export function seed(db: Database) {
   for (const { posts, from } of LISTS)
     for (const p of posts)
       if (!has.get(p.board, p.title)) add.run(p.board, p.author, p.title, p.body ?? listBody(from), Date.parse(`${p.date}T12:00:00+09:00`), p.views);
+
+  // 소설(컴퓨터) 갈무리를 옮긴 글. date는 완전한 ISO 문자열이다.
+  for (const p of computer)
+    if (!has.get(p.board, p.title)) add.run(p.board, p.author, p.title, p.body, p.date ? Date.parse(p.date) : Date.now(), p.views);
 }

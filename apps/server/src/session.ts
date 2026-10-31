@@ -109,6 +109,50 @@ const CLUBS: Club[] = [
   { go: "metal", name: "METAL 동호회", desc: ["헤비메탈을 듣고 이야기하는 사람들의 모임입니다.", "음반 평과 공연 소식을 나눕니다."] },
   { go: "music", name: "음악동호회", desc: ["듣고, 연주하고, 이야기합니다."] },
   { go: "movie", name: "영화동호회", desc: ["지난주에 본 영화 이야기를 나눕니다."] },
+  // 아래 넷은 옛 PC통신 글을 옮겨 둔 곳이다(소설(컴퓨터) 갈무리). go 이름은 원래 머리글의 WIN/EGG/PUG를 따랐다.
+  {
+    go: "win",
+    name: "윈도우즈 동호회",
+    desc: ["윈도우 95·98과 NT·2000을 쓰는 사람들의 모임입니다.", "활용 팁과 질문·답을 나눕니다. 옛 하이텔 글을 옮겨 두었습니다."],
+    boards: [
+      { no: "1", key: "98tip", name: "윈도우 98 활용과 팁" },
+      { no: "2", key: "98faq", name: "윈도우 98 FAQ 창고" },
+      { no: "3", key: "lecture", name: "윈도우즈 강좌실" },
+      { no: "4", key: "ntqna", name: "NT/2000 질문답변" },
+      { no: "5", key: "nttip", name: "NT/네트워크 활용과 팁" },
+      { no: "6", key: "cdr", name: "시디레코더 사용자 모임" },
+      { no: "7", key: "talk", name: "자유게시판" },
+    ],
+  },
+  {
+    go: "egg",
+    name: "컴퓨터 첫걸음",
+    desc: ["도스와 윈도우를 처음 배우는 사람들의 모임입니다.", "강좌를 읽고 모르는 것은 질문과답에 올려 주세요."],
+    boards: [
+      { no: "1", key: "lecture", name: "도스/윈도우즈 강좌" },
+      { no: "2", key: "qna", name: "질문과답" },
+    ],
+  },
+  {
+    go: "pug",
+    name: "파워유저 동호회",
+    desc: ["네트워크와 홈페이지 만들기를 깊이 파는 사람들의 모임입니다."],
+    boards: [
+      { no: "1", key: "net", name: "네트워크" },
+      { no: "2", key: "html", name: "홈페이지 태그 모음" },
+      { no: "3", key: "talk", name: "자유게시판" },
+    ],
+  },
+  {
+    go: "hacker",
+    name: "해커동호회",
+    desc: ["하이텔의 이름난 해커동호회를 본떴습니다.", "바이러스·보안·유닉스 기본교범을 모았습니다. 옛 PC통신 자료라 지금 환경과는 많이 다릅니다."],
+    boards: [
+      { no: "1", key: "notice", name: "알림" },
+      { no: "2", key: "manual", name: "기본교범" },
+      { no: "3", key: "talk", name: "자유게시판" },
+    ],
+  },
 ];
 
 const small = (go: string, name: string, desc?: string[]): Club => ({

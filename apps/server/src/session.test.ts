@@ -203,7 +203,7 @@ test("옛 PC통신 글은 맞는 게시판에 한 번만 들어가고 끝에 원
   expect(rows.length).toBe(1);
   expect(rows[0].board).toBe("data:12");
   expect(rows[0].body.endsWith("출처: https://ktsmemo.cafe24.com/s/OldFiles/651")).toBe(true);
-  expect(db.query("SELECT count(*) AS n FROM posts").get()).toEqual({ n: 131 });
+  expect(db.query("SELECT count(*) AS n FROM posts").get()).toEqual({ n: 338 });
 });
 
 test("아트미디어는 두 줄 첫 화면에서 게시판·보물창고·대화방·탈퇴로 간다", async () => {
@@ -348,5 +348,18 @@ test("go liter: 연재란은 읽기만, 감상란에는 쓴다", async () => {
   expect(a.text()).toContain("연재란은 읽기만 합니다");
   await type(a.s, "p", "4", "w", "잘 읽었습니다", "다음 편 기다려요", "/s");
   expect((a.db.query("SELECT board FROM posts WHERE title = ?").get("잘 읽었습니다") as { board: string }).board).toBe("liter:talk");
+  a.s.end();
+});
+
+test("옛 PC통신 컴퓨터 글은 win·egg·pug·해커동호회 게시판에 들어간다", async () => {
+  const a = await client();
+  seed(a.db);
+  await type(a.s, "hitel", "cm001", "pass1", "pass1", "", "go hacker");
+  expect(a.text()).toContain("해커동호회");
+  await type(a.s, "2"); // 기본교범
+  expect(a.text()).toContain("기본교범 1-01");
+  await type(a.s, "go win");
+  expect(a.text()).toContain("윈도우즈 동호회");
+  expect(a.db.query("SELECT count(*) AS n FROM posts WHERE board LIKE 'club:win:%'").get()).toEqual({ n: 97 });
   a.s.end();
 });
