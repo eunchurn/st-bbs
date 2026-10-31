@@ -319,3 +319,23 @@ test("소모임은 동호회/모임(15)에서 S로 간다", async () => {
   expect(a.text().split("\x1b[2J").at(-1)).toContain("동 호 회   목 록");
   a.s.end();
 });
+
+test("소모임은 동호회 목록에도 보인다", async () => {
+  const a = await client();
+  await type(a.s, "hitel", "sm002", "pass1", "pass1", "", "15");
+  expect(a.text().split("\x1b[2J").at(-1)).toContain("go small");
+  a.s.end();
+});
+
+test("게임/바둑(16)에서 퀴즈방에 들어가 다섯 문제를 푼다", async () => {
+  const a = await client();
+  await type(a.s, "hitel", "qz001", "pass1", "pass1", "", "16");
+  expect(a.text()).toContain("퀴즈방");
+  await type(a.s, "1", "9");
+  expect(a.text()).toContain("1에서 4 가운데 번호로 답해 주세요");
+  await type(a.s, "1", "2", "3", "4", "1");
+  expect(a.text()).toMatch(/5문제 가운데 .*\d문제.*를 맞혔습니다/);
+  await type(a.s, "p");
+  expect(a.text().split("\x1b[2J").at(-1)).toContain("게 임 / 바 둑");
+  a.s.end();
+});

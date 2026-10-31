@@ -117,6 +117,25 @@ const small = (go: string, name: string, desc?: string[]): Club => ({
 
 // 소모임은 주제(분류)별로 모이고 go 이름은 sg 번호다. 오락/게임 목록은 하이텔 FFUN 화면을 옮겼다.
 // sg1343(스매싱펌킨스 모임) 말고는 번호를 차례로 붙였다.
+// 퀴즈방 문제: [문제, 보기 넷, 정답 번호(1부터)]. 한 판에 다섯 문제를 섞어 낸다.
+const QUIZ: [string, string[], number][] = [
+  ["하이텔의 전국 공통 접속 번호는?", ["114", "01410", "119", "131"], 2],
+  ["서태지와 아이들의 데뷔곡은?", ["하여가", "컴백홈", "난 알아요", "교실 이데아"], 3],
+  ["통신 프로그램 '이야기'를 만든 회사는?", ["한글과컴퓨터", "삼보컴퓨터", "큰사람", "데이콤"], 3],
+  ["1988년 서울 올림픽 마스코트는?", ["꿈돌이", "호돌이", "수호랑", "반다비"], 2],
+  ["1993년 대전 엑스포 마스코트는?", ["꿈돌이", "호돌이", "곰돌이", "하나리"], 1],
+  ["천리안을 서비스한 회사는?", ["한국통신", "나우콤", "삼성SDS", "데이콤"], 4],
+  ["하이텔을 서비스한 회사는?", ["한국통신", "데이콤", "나우콤", "현대전자"], 1],
+  ["90년대 무선호출기를 흔히 부르던 말은?", ["시티폰", "삐삐", "카폰", "워크맨"], 2],
+  ["한컴타자연습에서 떨어지는 낱말을 쳐서 막는 게임은?", ["베네치아", "테트리스", "산성비", "갤러그"], 3],
+  ["PC통신에서 '방가방가'는 무슨 뜻?", ["반가워요", "안녕히", "고마워요", "미안해요"], 1],
+  ["1995년 드라마 '모래시계'를 방송한 곳은?", ["KBS", "MBC", "EBS", "SBS"], 4],
+  ["1997년 외환위기 때 한국이 구제금융을 받은 국제기구는?", ["UN", "IMF", "WTO", "OECD"], 2],
+  ["도스에서 파일 목록을 보는 명령은?", ["LS", "CAT", "DIR", "LIST"], 3],
+  ["'스타크래프트'가 나온 해는?", ["1994", "1996", "1998", "2000"], 3],
+];
+const QUIZ_ROUND = 5;
+
 const SMALLS: Small[] = [
   {
     go: "ffun",
@@ -777,6 +796,8 @@ export class Session {
     if (item.go === "chat") return this.chatList();
     if (item.go === "club") return this.clubList();
     if (item.go === "small") return this.smallCats();
+    if (item.go === "game") return this.gameMenu();
+    if (item.go === "quiz") return this.quiz();
     if (item.go === "data") return this.dataList();
     if (item.go === "memo") return this.memoList();
     this.main(` [${item.name}] 준비 중인 메뉴입니다.`);
@@ -927,6 +948,10 @@ export class Session {
     const cell = (c: Club) => `${this.isMember(c) ? "*" : " "}go ${pad(c.go, 7)}${pad(c.name, 21)}${String(this.members(c)).padStart(3)}명`;
     const half = Math.ceil(CLUBS.length / 2);
     const rows = CLUBS.slice(0, half).map((c, i) => cell(c) + (CLUBS[half + i] ? cell(CLUBS[half + i]) : ""));
+    // 소모임은 동호회 밑에 있다. 목록 끝 빈칸(없으면 새 줄)에 눈에 띄게 둔다.
+    const small = `${HL}>go small  ${pad("소모임 (주제별, S)", 21)}${String(SMALLS.reduce((n, g) => n + g.clubs.length, 0)).padStart(3)}곳${PANEL}`;
+    if (CLUBS.length % 2) rows[rows.length - 1] += small;
+    else rows.push(" ".repeat(cells(cell(CLUBS[0]))) + small);
     const [list, next] = this.box(6, 2, 76, ["", ...rows, ""]);
     this.draw(
       [
@@ -1123,6 +1148,77 @@ export class Session {
       ].join(""),
       next + 4,
     ];
+  }
+
+  // ---- 게임/바둑 ----
+
+  private gameMenu(notice = "") {
+    const [list, next] = this.box(6, 12, 58, ["", " 1. 퀴즈방           go quiz   90년대 상식 다섯 문제", " 2. 바둑 대국실      (준비 중)", ""]);
+    this.draw(
+      [
+        this.header("GAME", "게임/바둑"),
+        this.head(4, 12, 58, "게 임 / 바 둑", GREEN),
+        list,
+        this.at(next + 1, 1) + notice,
+        this.at(next + 3, 1) + " 들어가기(번호) 이전(P) 처음(T) 종료(X)",
+      ].join(""),
+      next + 4,
+    );
+    this.ask(" >> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (!c) return this.gameMenu();
+      if (c === "p") return this.main();
+      if (c === "1" || c === "go quiz" || c === "quiz") return this.quiz();
+      if (c === "2") return this.gameMenu(" 바둑 대국실은 준비 중입니다.");
+      if (this.nav(c)) return;
+      this.gameMenu(" 그런 번호는 없습니다.");
+    });
+  }
+
+  // 퀴즈방: 섞은 문제 다섯 개를 하나씩 낸다. 답은 번호로, Q는 그만.
+  private quiz(qs = [...QUIZ].sort(() => Math.random() - 0.5).slice(0, QUIZ_ROUND), score = 0, notice = "") {
+    const i = QUIZ_ROUND - qs.length;
+    if (!qs.length) return this.quizEnd(score);
+    const [q, choices, answer] = qs[0];
+    this.draw(
+      [
+        this.header("QUIZ", "퀴즈방", `${i + 1}/${QUIZ_ROUND}  맞힌 문제 ${score}`),
+        this.at(4, 2) + notice,
+        this.head(7, 2, 76, ` 문제 ${i + 1}`, PURPLE),
+        this.at(9, 4) + HL + q + RS,
+        this.lines(11, 6, choices.map((c, n) => `${n + 1}. ${c}`)),
+        this.at(20, 1) + " 답(1~4) 그만(Q)",
+      ].join(""),
+      21,
+    );
+    this.ask(" >> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (c === "q") return this.gameMenu();
+      if (!/^[1-4]$/.test(c)) return this.quiz(qs, score, " 1에서 4 가운데 번호로 답해 주세요.");
+      const ok = Number(c) === answer;
+      this.quiz(qs.slice(1), score + (ok ? 1 : 0), ok ? ` ${HL}딩동댕! 맞았습니다.${RS}` : ` 땡! 정답은 ${answer}. ${choices[answer - 1]}`);
+    });
+  }
+
+  private quizEnd(score: number) {
+    const title = ["다시 도전해 보세요", "통신 새내기", "통신 새내기", "PC통신 고수", "PC통신 고수", "90년대 박사"][score];
+    this.draw(
+      [
+        this.header("QUIZ", "퀴즈방"),
+        this.head(7, 12, 58, "결 과", PURPLE),
+        this.at(10, 14) + `${QUIZ_ROUND}문제 가운데 ${HL}${score}문제${RS}를 맞혔습니다.`,
+        this.at(12, 14) + `칭호 : ${HL}${title}${RS}`,
+        this.at(20, 1) + " 한 판 더(ENTER) 이전(P) 처음(T) 종료(X)",
+      ].join(""),
+      21,
+    );
+    this.ask(" >> ", (line) => {
+      const c = line.trim().toLowerCase();
+      if (!c) return this.quiz();
+      if (c === "p") return this.gameMenu();
+      if (this.nav(c)) return;
+      this.quizEnd(score);
+    });
   }
 
   // ---- 소모임 ----
