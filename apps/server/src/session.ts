@@ -934,7 +934,7 @@ export class Session {
         this.head(4, 2, 76, "동 호 회   목 록", GREEN),
         list,
         this.at(next + 1, 1) + notice,
-        this.at(next + 3, 1) + " 들어가기(이름, 예: ksc) 이전(P) 처음(T) 종료(X)",
+        this.at(next + 3, 1) + " 들어가기(이름, 예: ksc) 소모임(S) 이전(P) 처음(T) 종료(X)",
       ].join(""),
       next + 4,
     );
@@ -942,6 +942,7 @@ export class Session {
       const c = line.trim().toLowerCase();
       if (!c) return this.clubList();
       if (c === "p") return this.main();
+      if (c === "s") return this.smallCats(); // 소모임은 첫 화면에 없고 동호회/모임 밑에 있다
       const go = c.replace(/^go /, "");
       if (CLUBS.some((cl) => cl.go === go)) return this.openClub(go);
       if (this.nav(c)) return;
@@ -1142,7 +1143,7 @@ export class Session {
     this.ask(" >> ", (line) => {
       const c = line.trim().toLowerCase();
       if (!c) return this.smallCats();
-      if (c === "p") return this.main();
+      if (c === "p") return this.clubList();
       const cat = SMALLS[Number(c) - 1] ?? SMALLS.find((g) => g.go === c.replace(/^go /, ""));
       if (cat) return this.smallList(cat);
       if (this.nav(c)) return;

@@ -310,3 +310,12 @@ test("예전 채팅방은 분류 5로 옮기고, 운영자 방은 제 분류로 
   expect(q("농구대잔치 연고전 응원방")?.category).toBe("44");
   expect(q("없어진 방")).toBeNull();
 });
+
+test("소모임은 동호회/모임(15)에서 S로 간다", async () => {
+  const a = await client();
+  await type(a.s, "hitel", "sm001", "pass1", "pass1", "", "15", "s");
+  expect(a.text()).toContain("소모임 [분류]");
+  await type(a.s, "p");
+  expect(a.text().split("\x1b[2J").at(-1)).toContain("동 호 회   목 록");
+  a.s.end();
+});
