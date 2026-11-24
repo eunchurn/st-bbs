@@ -684,8 +684,9 @@ export class Session {
   }
 
   private newId() {
-    this.ask("  사용할 ID(영문으로 시작하는 3~8자) : ", (line) => {
+    this.ask("  사용할 ID(영문으로 시작하는 3~8자, 엔터는 처음으로) : ", (line) => {
       const id = line.trim().toLowerCase();
+      if (!id) return this.askId();
       if (!ID_RE.test(id) || id === SERVICE) {
         this.print("  ID는 영문으로 시작하는 3~8자의 영문·숫자입니다.");
         return this.newId();

@@ -26,3 +26,17 @@ test("모뎀 접속: 첫 화면이 나오고, 한글 두 바이트와 지우기�
   expect(out).toBe("가나\b\b  \b\b다"); // 메아리: 지우기는 한글 폭(2칸)만큼, 방향키는 버린다
   r.end();
 });
+
+test("가입 ID 입력에서 빈 엔터는 처음 ID 물음으로 돌아간다", async () => {
+  let out = "";
+  const r = rawSession(openDb(":memory:"), (b) => (out += euc(b)), () => {});
+  const typed = (s: string) => r.input(new Uint8Array([...s].flatMap((c) => (c < "\x80" ? [c.charCodeAt(0)] : [...encode(c)]))));
+  typed("hitel\r");
+  await Bun.sleep(10);
+  expect(out).toContain("사용할 ID");
+  out = "";
+  typed("\r"); // 빈 엔터
+  await Bun.sleep(10);
+  expect(out).toContain("이용자ID");
+  r.end();
+});
